@@ -28,12 +28,13 @@ public struct SSHCommandBuilder: Sendable {
     public var controlDirectory: String
     /// How long the master connection stays alive after the last client exits.
     public var controlPersistSeconds: Int
-    /// xauth used for X11 forwarding. macOS ssh defaults to /usr/X11R6/bin/xauth,
-    /// which does not exist; XQuartz installs it in /opt/X11/bin.
+    /// Program ssh runs as `xauth list <display>` to learn the X server's
+    /// cookie. The app points it at a stand-in written by its built-in X
+    /// server (macOS has no xauth of its own).
     public var xauthPath: String?
 
     public init(sshPath: String = "/usr/bin/ssh", controlDirectory: String, controlPersistSeconds: Int = 600,
-                xauthPath: String? = X11Support.xauthPath) {
+                xauthPath: String? = nil) {
         self.sshPath = sshPath
         self.controlDirectory = controlDirectory
         self.controlPersistSeconds = controlPersistSeconds

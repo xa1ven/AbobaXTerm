@@ -2,13 +2,14 @@
 Любительский порт Мобы на мак
 
 Personal native macOS SSH client: saved sessions, tabbed terminal (SwiftTerm),
-SFTP side panel and X11 forwarding. Not for distribution.
+SFTP side panel and a built-in X11 display. Not for distribution.
 
 ## Requirements
 
 - macOS 26+, Xcode 27+
 - `brew install xcodegen`
-- XQuartz for X11 (`brew install --cask xquartz`, then log out and back in)
+- For X11, until the X server is bundled with the app: the `Xvfb` binary from XQuartz
+  (`/opt/X11/bin/Xvfb`). XQuartz itself is never launched.
 
 ## Build
 
@@ -33,6 +34,8 @@ Packages/AbobaXTermKit/      all logic, as a local Swift package
   Sources/AXSSH              ssh argv builder, askpass broker, ControlMaster, ssh -G
   Sources/AXTerminal         SwiftTerm view + terminal tab lifecycle, output highlighting
   Sources/AXSFTP             SFTP v3 client over an ssh channel (pipelined transfers)
+  Sources/AXX11              built-in X11 display: X protocol client, window manager, compositor, input
+  Sources/abx-x11-harness    development tool: runs AXX11 against a command, dumps windows as PNG
   Sources/AXEditor           code editor view (TextKit 1) + regex syntax highlighting
   Sources/AXUI               SwiftUI/AppKit: sidebar, session editor, tabs, file panel, remote editor
   Sources/abx-askpass        SSH_ASKPASS helper embedded in the .app
@@ -52,11 +55,18 @@ Packages/AbobaXTermKit/      all logic, as a local Swift package
   (`SSH_ASKPASS_REQUIRE=force`); the helper forwards the prompt to the app over a private Unix socket,
   and the app answers from the Keychain or shows a native dialog. Saved passwords are only auto-filled
   when the prompt names the session's own host, never a jump host.
-- X11: sessions with "X11 forwarding" run `ssh -Y -o XAuthLocation=/opt/X11/bin/xauth` (macOS ssh
-  otherwise looks for xauth in `/usr/X11R6`, which does not exist). DISPLAY is the launchd socket
-  XQuartz registers at login, so XQuartz starts on the first X window; without it the app launches
-  XQuartz and uses `:0`. X11 sessions use a separate master (`cm-<id>-x-…`), because a master forwards
-  X11 to the DISPLAY it was started with.
+- X11: the app has its own X display. A headless X.org server (`Xvfb`) runs as a hidden child process,
+  started with the first session that has "X11 forwarding" on; `AXX11` connects to it as window manager
+  and compositor. Every top-level X window lives in an off-screen pixmap (Composite), is mirrored into a
+  native `NSWindow` on damage, and gets the user's mouse and keyboard through XTEST. Menus and tooltips
+  (override-redirect windows) become borderless panels.
+- ssh side of X11: `ssh -Y` with `DISPLAY=:N` (N from 41 up) and `-o XAuthLocation=/tmp/abx-<uid>/abx-xauth`,
+  a generated script that answers `xauth list` with the server's cookie. Display number and cookie are
+  kept in `/tmp/abx-<uid>/x11-state`, so a ControlMaster that outlives the app keeps working. X11 sessions
+  use a separate master (`cm-<id>-x-…`), because a master forwards X11 to the DISPLAY it was started with.
+- Keyboard for X11: keycode = Mac virtual key code + 8; the keymap is built from the Mac layouts (Latin as
+  group 1, the current non-Latin layout as group 2) and follows input-source switches. Control = Control,
+  Option = Alt, Command = Super.
 - Data: `~/Library/Application Support/AbobaXTerm/sessions.json` (+ `.bak`).
 
 ## Integration test (optional)

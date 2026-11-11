@@ -39,14 +39,14 @@ import Testing
         #expect(args.suffix(2) == ["--", "10.0.0.5"])
     }
 
-    @Test func x11UsesXQuartzXauthAndItsOwnMaster() throws {
-        let b = SSHCommandBuilder(controlDirectory: "/tmp/abx-501", xauthPath: "/opt/X11/bin/xauth")
+    @Test func x11UsesXauthStandInAndItsOwnMaster() throws {
+        let b = SSHCommandBuilder(controlDirectory: "/tmp/abx-501", xauthPath: "/tmp/abx-501/abx-xauth")
         let id = UUID(uuidString: "ABCDEF01-0000-0000-0000-000000000000")!
         let x = Session(id: id, host: "srv", x11Forwarding: true)
         let plain = Session(id: id, host: "srv")
         let args = try b.arguments(for: x)
-        #expect(args.containsSequence(["-Y", "-o", "XAuthLocation=/opt/X11/bin/xauth"]))
-        #expect(!(try b.arguments(for: plain)).contains("XAuthLocation=/opt/X11/bin/xauth"))
+        #expect(args.containsSequence(["-Y", "-o", "XAuthLocation=/tmp/abx-501/abx-xauth"]))
+        #expect(!(try b.arguments(for: plain)).contains("XAuthLocation=/tmp/abx-501/abx-xauth"))
         #expect(b.controlPath(for: x) == "/tmp/abx-501/cm-abcdef01-x-%C")
         #expect(b.controlPath(for: plain) == "/tmp/abx-501/cm-abcdef01-%C")
         // Both share the prefix used to close masters on quit.

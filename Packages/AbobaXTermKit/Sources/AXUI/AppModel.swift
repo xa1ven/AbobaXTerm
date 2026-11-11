@@ -3,6 +3,7 @@ import AXModels
 import AXSSH
 import AXStorage
 import AXTerminal
+import AXX11
 import Observation
 import SwiftUI
 
@@ -56,7 +57,7 @@ public final class AppModel {
     public var deletionRequest: DeletionRequest?
     public var folderNameRequest: FolderNameRequest?
     public var errorMessage: ErrorMessage?
-    /// X11 session opened while XQuartz is missing: asks what to do.
+    /// X11 session opened while the built-in X server cannot be found: asks what to do.
     public var x11MissingRequest: Session?
 
     // MARK: Settings (persisted in UserDefaults)
@@ -92,6 +93,8 @@ public final class AppModel {
     @ObservationIgnored private var broker: AskpassBroker?
     @ObservationIgnored private let askpassHelperPath: String?
     @ObservationIgnored private let askpassPresenter = AskpassPresenter()
+    /// Built-in X server; starts with the first session that forwards X11.
+    @ObservationIgnored public let x11: X11Service
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var started = false
     /// Master-socket prefixes of sessions opened by this app instance.
@@ -115,8 +118,11 @@ public final class AppModel {
         self.askpassHelperPath = askpassHelperPath
         self.highlightOutput = UserDefaults.standard.object(forKey: Self.highlightKey) as? Bool ?? true
 
+        let x11 = X11Service(runtimeDirectory: paths.runtimeDirectory)
+        self.x11 = x11
         let builder = SSHCommandBuilder(controlDirectory: paths.runtimeDirectory.path,
-                                        controlPersistSeconds: persistMinutes * 60)
+                                        controlPersistSeconds: persistMinutes * 60,
+                                        xauthPath: X11Service.xauthLocation(runtimeDirectory: paths.runtimeDirectory))
         do {
             try paths.prepare()
             Self.removeStaleAskpassSockets(in: paths.runtimeDirectory)
@@ -130,7 +136,8 @@ public final class AppModel {
             NSLog("AbobaXTerm: askpass disabled: \(error)")
         }
         launcher = SSHLauncher(builder: builder, broker: broker,
-                               askpassHelperPath: broker == nil ? nil : askpassHelperPath)
+                               askpassHelperPath: broker == nil ? nil : askpassHelperPath,
+                               x11: EmbeddedX11Display(service: x11))
     }
 
     /// Deletes askpass sockets left behind by instances that crashed or were killed.
@@ -148,9 +155,11 @@ public final class AppModel {
 
     private func rebuildLauncher() {
         let builder = SSHCommandBuilder(controlDirectory: paths.runtimeDirectory.path,
-                                        controlPersistSeconds: controlPersistMinutes * 60)
+                                        controlPersistSeconds: controlPersistMinutes * 60,
+                                        xauthPath: X11Service.xauthLocation(runtimeDirectory: paths.runtimeDirectory))
         launcher = SSHLauncher(builder: builder, broker: broker,
-                               askpassHelperPath: broker == nil ? nil : askpassHelperPath)
+                               askpassHelperPath: broker == nil ? nil : askpassHelperPath,
+                               x11: EmbeddedX11Display(service: x11))
     }
 
     /// Loads the library; safe to call more than once.
@@ -171,6 +180,7 @@ public final class AppModel {
         try? repository.save(library)
         for browser in fileBrowsers.values { browser.disconnect() }
         for tab in tabs { tab.close() }
+        x11.shutdown()
         broker?.stop()
         ControlMasterManager.closeAll(in: paths.runtimeDirectory.path, socketPrefixes: usedSocketPrefixes,
                                       sshPath: launcher.builder.sshPath)
@@ -360,7 +370,7 @@ public final class AppModel {
 
     public func connect(sessionID: UUID) {
         guard let session = library.session(id: sessionID) else { return }
-        if session.x11Forwarding && !X11Support.isInstalled {
+        if session.x11Forwarding && !x11.isAvailable {
             x11MissingRequest = session
             return
         }

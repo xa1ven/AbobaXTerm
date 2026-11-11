@@ -24,11 +24,15 @@ public struct SSHLauncher: Sendable {
     public let broker: AskpassBroker?
     /// Path of `abx-askpass`; nil disables askpass (ssh then prompts in the terminal).
     public let askpassHelperPath: String?
+    /// Local X display for sessions with X11 forwarding; nil when there is none.
+    public let x11: (any X11DisplayProviding)?
 
-    public init(builder: SSHCommandBuilder, broker: AskpassBroker?, askpassHelperPath: String?) {
+    public init(builder: SSHCommandBuilder, broker: AskpassBroker?, askpassHelperPath: String?,
+                x11: (any X11DisplayProviding)? = nil) {
         self.builder = builder
         self.broker = broker
         self.askpassHelperPath = askpassHelperPath
+        self.x11 = x11
     }
 
     public func prepare(_ session: Session, isSaved: Bool) async throws -> SSHLaunchSpec {
@@ -53,7 +57,8 @@ public struct SSHLauncher: Sendable {
         var notices: [String] = []
         if session.x11Forwarding {
             do {
-                extra["DISPLAY"] = try await X11Support.prepareDisplay()
+                guard let x11 else { throw X11Unavailable() }
+                extra["DISPLAY"] = try await x11.prepareDisplay()
             } catch {
                 notices.append("X11: \(error.localizedDescription) Windows from the server will not open.")
             }
@@ -71,6 +76,10 @@ public struct SSHLauncher: Sendable {
 
     public func finish(_ spec: SSHLaunchSpec) {
         if let token = spec.askpassToken { broker?.unregister(token) }
+    }
+
+    private struct X11Unavailable: LocalizedError {
+        var errorDescription: String? { "No X server is available." }
     }
 
     func environment(token: String?, extra: [String: String] = [:]) -> [String] {

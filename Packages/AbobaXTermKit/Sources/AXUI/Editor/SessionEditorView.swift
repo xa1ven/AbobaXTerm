@@ -136,11 +136,8 @@ struct SessionEditorView: View {
                 .font(.system(.body, design: .monospaced))
             Toggle(isOn: $session.x11Forwarding) {
                 Text("X11 forwarding")
-                if session.x11Forwarding && !X11Support.isInstalled {
-                    Text("XQuartz is not installed: \(X11Support.installCommand)")
-                        .foregroundStyle(.orange)
-                        .textSelection(.enabled)
-                }
+                Text("Programs started on the server open as windows on this Mac.")
+                    .foregroundStyle(.secondary)
             }
             LabeledContent("Command") {
                 Text(validationError == nil ? model.commandLinePreview(for: composed) : "—")

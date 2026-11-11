@@ -50,18 +50,14 @@ public struct MainView: View {
             FolderNameField(request: request)
         }
         .alert(
-            "XQuartz Is Not Installed",
+            "X11 Is Not Available",
             isPresented: Binding(get: { model.x11MissingRequest != nil }, set: { if !$0 { model.x11MissingRequest = nil } }),
             presenting: model.x11MissingRequest
         ) { session in
             Button("Connect Without X11") { model.connectWithoutX11(session) }
-            Button("Copy Install Command") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(X11Support.installCommand, forType: .string)
-            }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
-            Text("“\(model.x11MissingRequest?.displayName ?? "")” uses X11 forwarding, which needs XQuartz to show windows from the server.\n\nInstall it in Terminal with:\n\(X11Support.installCommand)\nthen log out and back in.")
+            Text("“\(model.x11MissingRequest?.displayName ?? "")” uses X11 forwarding, but the built-in X server is missing from this copy of AbobaXTerm. Rebuild the app to restore it.")
         }
         .alert(
             model.errorMessage?.title ?? "",

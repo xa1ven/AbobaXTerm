@@ -63,32 +63,39 @@ extension AppModel {
     var localShellPath: String { TerminalEnvironment.userShell }
 }
 
-/// Whether XQuartz is installed, with the install command if not.
+/// State of the built-in X server.
 private struct X11StatusRow: View {
-    @State private var installed = X11Support.isInstalled
+    @Environment(AppModel.self) private var model
+    @State private var status = ""
+    @State private var isHealthy = true
 
     var body: some View {
-        LabeledContent("XQuartz") {
-            if installed {
-                Label("Installed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                HStack {
-                    Text(X11Support.installCommand)
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                    Button("Copy") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(X11Support.installCommand, forType: .string)
-                    }
-                }
-            }
+        LabeledContent("Built-in X server") {
+            Label(status, systemImage: isHealthy ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(isHealthy ? .green : .orange)
         }
-        .onAppear { installed = X11Support.isInstalled }
-        if !installed {
-            Text("Needed for X11 forwarding. After installing, log out and back in once.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        .onAppear(perform: refresh)
+        Text("Sessions with “X11 forwarding” show programs from the server as windows on this Mac. Nothing else needs to be installed.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+    }
+
+    private func refresh() {
+        let x11 = model.x11
+        isHealthy = x11.isAvailable
+        switch x11.state {
+        case _ where !x11.isAvailable:
+            status = "Missing from the app"
+        case .running(let display):
+            let count = x11.windowCount
+            status = "Running on \(display)" + (count > 0 ? ", \(count) window\(count == 1 ? "" : "s")" : "")
+        case .starting:
+            status = "Starting…"
+        case .failed(let reason):
+            status = reason
+            isHealthy = false
+        case .stopped:
+            status = "Starts with the first X11 session"
         }
     }
 }

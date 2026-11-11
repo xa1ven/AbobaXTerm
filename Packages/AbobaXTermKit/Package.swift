@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "AXTerminal", targets: ["AXTerminal"]),
         .library(name: "AXSFTP", targets: ["AXSFTP"]),
         .library(name: "AXEditor", targets: ["AXEditor"]),
+        .library(name: "AXX11", targets: ["AXX11"]),
         .library(name: "AXUI", targets: ["AXUI"]),
         .executable(name: "abx-askpass", targets: ["abx-askpass"]),
     ],
@@ -26,7 +27,10 @@ let package = Package(
         .target(name: "AXTerminal", dependencies: ["AXModels", "AXSSH", .product(name: "SwiftTerm", package: "SwiftTerm")]),
         .target(name: "AXSFTP"),
         .target(name: "AXEditor"),
-        .target(name: "AXUI", dependencies: ["AXModels", "AXStorage", "AXSSH", "AXTerminal", "AXSFTP", "AXEditor"]),
+        .target(name: "AXX11"),
+        .target(name: "AXUI", dependencies: ["AXModels", "AXStorage", "AXSSH", "AXTerminal", "AXSFTP", "AXEditor", "AXX11"]),
+        // Development tool: runs the embedded X server against a local command and dumps window snapshots.
+        .executableTarget(name: "abx-x11-harness", dependencies: ["AXX11"]),
         .executableTarget(name: "abx-askpass", dependencies: ["AXAskpassProtocol"]),
         .testTarget(name: "AXModelsTests", dependencies: ["AXModels"]),
         .testTarget(name: "AXStorageTests", dependencies: ["AXStorage", "AXModels"]),
@@ -34,5 +38,6 @@ let package = Package(
         .testTarget(name: "AXTerminalTests", dependencies: ["AXTerminal"]),
         .testTarget(name: "AXSFTPTests", dependencies: ["AXSFTP"]),
         .testTarget(name: "AXEditorTests", dependencies: ["AXEditor"]),
+        .testTarget(name: "AXX11Tests", dependencies: ["AXX11"]),
     ]
 )
