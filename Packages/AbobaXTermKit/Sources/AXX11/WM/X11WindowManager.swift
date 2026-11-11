@@ -28,9 +28,13 @@ final class X11WindowManager {
     var pointer: (x: Int, y: Int)?
     var scrollRemainder = CGSize.zero
     var cursorSerial: UInt32 = 0
+    var clipboard = X11ClipboardState()
+    /// The pasteboard mirrored to the X clipboard (tests use a private one).
+    var pasteboard = NSPasteboard.general
     var currentCursor: NSCursor = .arrow
 
-    private var checkWindow: UInt32 = 0
+    /// Invisible window owned by the manager: EWMH check window, selection owner.
+    var helperWindow: UInt32 = 0
     private var timeBase: (server: UInt32, local: TimeInterval)?
     /// Called after windows appear, disappear or change title.
     var onChange: (() -> Void)?
@@ -53,11 +57,11 @@ final class X11WindowManager {
         c.compositeRedirectSubwindows(ext, root)
         try await c.sync()
 
-        checkWindow = c.createHelperWindow(parent: root, eventMask: XEventMask.propertyChange)
+        helperWindow = c.createHelperWindow(parent: root, eventMask: XEventMask.propertyChange)
         let name = Array("AbobaXTerm".utf8)
-        c.changeProperty(checkWindow, atoms[.netWMName], type: atoms[.utf8String], format: 8, data: name)
-        c.changeProperty(checkWindow, atoms[.netSupportingWMCheck], type: atoms[.window], longs: [checkWindow])
-        c.changeProperty(root, atoms[.netSupportingWMCheck], type: atoms[.window], longs: [checkWindow])
+        c.changeProperty(helperWindow, atoms[.netWMName], type: atoms[.utf8String], format: 8, data: name)
+        c.changeProperty(helperWindow, atoms[.netSupportingWMCheck], type: atoms[.window], longs: [helperWindow])
+        c.changeProperty(root, atoms[.netSupportingWMCheck], type: atoms[.window], longs: [helperWindow])
         let supported: [XAtom] = [
             .netSupported, .netSupportingWMCheck, .netActiveWindow, .netClientList, .netCloseWindow,
             .netWorkarea, .netNumberOfDesktops, .netCurrentDesktop, .netDesktopGeometry, .netDesktopViewport,
@@ -74,10 +78,12 @@ final class X11WindowManager {
         c.changeProperty(root, atoms[.netActiveWindow], type: atoms[.window], longs: [0])
         c.changeProperty(root, atoms[.netClientList], type: atoms[.window], longs: [])
         publishDesktop()
+        publishSettings()
 
         // Plain arrow instead of the server's default "X" cursor.
         c.setWindowCursor(root, cursor: c.createFontCursor(glyph: 68))
         c.xfixesSelectCursorInput(ext, root)
+        startClipboard()
         await keyboard.install()
 
         // Windows that already exist (the app reconnecting to a running server).
@@ -98,6 +104,21 @@ final class X11WindowManager {
         let area = desktop.xRect(for: visible.intersection(desktop.frame))
         connection.changeProperty(root, atoms[.netWorkarea], type: atoms[.cardinal],
                                   longs: [area.x, area.y, area.width, area.height].map { UInt32(max(0, $0)) })
+    }
+
+    /// Tells clients the UI scale and font settings (XSETTINGS manager + X resources).
+    private func publishSettings() {
+        let c = connection
+        let scale = max(1, Int(desktop.scale.rounded()))
+        let resources = Array(X11Settings.resources(scale: scale).utf8)
+        c.changeProperty(root, atoms[.resourceManager], type: atoms[.string], format: 8, data: resources)
+
+        let settings = X11Settings.desktop(scale: scale).encoded(serial: 1)
+        c.changeProperty(helperWindow, atoms[.xsettingsSettings], type: atoms[.xsettingsSettings], format: 8, data: settings)
+        c.setSelectionOwner(atoms[.xsettingsScreen], owner: helperWindow)
+        // Announce the new manager to clients that are already running.
+        c.sendClientMessage(to: root, window: root, type: atoms[.manager],
+                            data: [0, atoms[.xsettingsScreen], helperWindow], eventMask: XEventMask.structureNotify)
     }
 
     /// Handles events until the server connection ends.
@@ -160,8 +181,12 @@ final class X11WindowManager {
             window.overrideRedirect = overrideRedirect
             geometryChanged(window, to: geometry)
 
-        case .propertyNotify(let id, let atom, let time, _):
+        case .propertyNotify(let id, let atom, let time, let deleted):
             noteServerTime(time)
+            if id == helperWindow {
+                await helperPropertyChanged(atom, deleted: deleted)
+                return
+            }
             guard let window = windows[id], let known = atoms.known(atom), X11WindowProperties.tracked.contains(known) else { return }
             await reloadProperty(known, of: window)
 
@@ -176,8 +201,20 @@ final class X11WindowManager {
         case .xfixesCursorNotify(let serial, _):
             await cursorChanged(serial: serial)
 
-        case .mappingNotify, .focusIn, .focusOut, .selectionClear, .selectionRequest, .selectionNotify,
-             .xfixesSelectionNotify, .shapeNotify, .other:
+        case .selectionRequest(let time, _, let requestor, let selection, let target, let property):
+            selectionRequested(requestor: requestor, selection: selection, target: target, property: property, time: time)
+
+        case .selectionClear(_, _, let selection):
+            selectionCleared(selection: selection)
+
+        case .selectionNotify(_, let requestor, let selection, let target, let property):
+            if requestor == helperWindow { await selectionArrived(selection: selection, target: target, property: property) }
+
+        case .xfixesSelectionNotify(let owner, let selection, let time):
+            noteServerTime(time)
+            selectionOwnerChanged(selection: selection, owner: owner)
+
+        case .mappingNotify, .focusIn, .focusOut, .shapeNotify, .other:
             break
         }
     }

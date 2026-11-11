@@ -18,7 +18,10 @@ extension X11WindowManager: X11SurfaceInput {
 
     func surface(_ view: X11SurfaceView, button: Int, pressed: Bool, at point: CGPoint) {
         guard let window = windows[view.windowID], (1...255).contains(button) else { return }
-        if pressed { syncStackingFromScreen() }
+        if pressed {
+            syncStackingFromScreen()
+            keyboard.commitModifiers()
+        }
         movePointer(to: point, in: window)
         connection.fakeInput(ext, pressed ? .buttonPress : .buttonRelease, detail: UInt8(button))
     }
@@ -51,6 +54,36 @@ extension X11WindowManager: X11SurfaceInput {
 
     func surface(_ view: X11SurfaceView, modifiersChanged event: NSEvent) {
         keyboard.modifiersChanged(event)
+    }
+
+    func surface(_ view: X11SurfaceView, shortcut event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection([.command, .control, .option])
+        guard modifiers == .command, let window = windows[view.windowID] else { return false }
+        // Whatever becomes of it (shortcut, menu of the app, Super+key), Command was not just tapped.
+        keyboard.commandKeyUsed()
+        return performShortcut(macKey: event.keyCode, in: window)
+    }
+
+    /// Command+key in `window`: copy, paste and friends in the program's own
+    /// terms (see `X11Shortcut`). False if the key is not such a shortcut.
+    @discardableResult
+    func performShortcut(macKey: UInt16, in window: X11Window) -> Bool {
+        guard let keysym = keyboard.shortcutKeysym(forMacKey: macKey),
+              let action = X11Shortcut.action(forKeysym: keysym, style: window.properties.shortcutStyle) else { return false }
+        switch action {
+        case .control(let shift):
+            offerPasteboard()
+            keyboard.sendChord(macKey: macKey, control: true, shift: shift)
+        case .copySelection:
+            copyPrimarySelection()
+        case .pasteSelection:
+            offerPasteboard()
+            offerPrimarySelection()
+            keyboard.sendChord(macKey: 114, control: false, shift: true) // Shift+Insert
+        case .ignore:
+            break
+        }
+        return true
     }
 
     /// `point` is in X pixels relative to the window's top-left corner.

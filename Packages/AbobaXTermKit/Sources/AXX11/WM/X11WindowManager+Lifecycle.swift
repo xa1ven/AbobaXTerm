@@ -102,6 +102,12 @@ extension X11WindowManager {
         guard let attributes = try? await connection.windowAttributes(window.id), !attributes.isInputOnly,
               let (depth, geometry) = try? await connection.geometry(window.id),
               windows[window.id] === window else { return }
+        if window.overrideRedirect {
+            // Popups are not managed, but their type tells menus from tooltips.
+            let type = try? await connection.property(window.id, atoms[.netWMWindowType])
+            guard windows[window.id] === window else { return }
+            window.properties.apply(.netWMWindowType, type, atoms: atoms)
+        }
         window.depth = depth
         window.geometry = geometry
         window.isMapped = true

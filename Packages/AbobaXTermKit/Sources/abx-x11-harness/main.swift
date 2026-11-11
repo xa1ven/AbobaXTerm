@@ -12,6 +12,9 @@
 //   type:TEXT           type text
 //   key:CODE[:shift]    tap a Mac virtual key code
 //   keydown:CODE / keyup:CODE   hold and release a key
+//   shortcut:N:CODE     Command+key in the N-th window (as translated by the app)
+//   copy:TEXT           put text on the (private) pasteboard and offer it to X
+//   pasteboard          print the pasteboard text
 //   close:N             ask the N-th window to close
 //   dump:NAME           write a snapshot named NAME
 //
@@ -23,6 +26,7 @@ import AXX11
 final class Harness {
     var out = FileManager.default.currentDirectoryPath
     var show = false
+    var scale: Double?
     var wait = 3.0
     var script: [String] = []
     var command: [String] = []
@@ -34,6 +38,7 @@ final class Harness {
             switch arg {
             case "--out": out = args.popFirst() ?? out
             case "--show": show = true
+            case "--scale": scale = Double(args.popFirst() ?? "")
             case "--wait": wait = Double(args.popFirst() ?? "") ?? wait
             case "--script": script = (args.popFirst() ?? "").split(separator: ";").map(String.init)
             case "--": command = Array(args); args = []
@@ -44,6 +49,9 @@ final class Harness {
         try? FileManager.default.createDirectory(at: runtime, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         service = X11Service(runtimeDirectory: runtime)
         service.presentsWindows = show
+        // Never touch the user's real clipboard from the harness.
+        service.pasteboard = NSPasteboard(name: NSPasteboard.Name("com.mikhail.AbobaXTerm.harness"))
+        service.scaleOverride = scale.map { CGFloat($0) }
     }
 
     func log(_ text: String) { FileHandle.standardError.write(Data((text + "\n").utf8)) }
@@ -105,10 +113,18 @@ final class Harness {
             service.debugType(parts.dropFirst().joined(separator: ":"))
         case "key":
             service.debugTap(keyCode: UInt8(int(1)), shift: parts.count > 2 && parts[2] == "shift")
+        case "copy":
+            service.pasteboard.clearContents()
+            service.pasteboard.setString(parts.dropFirst().joined(separator: ":"), forType: .string)
+            service.debugOfferPasteboard()
+        case "pasteboard":
+            log("pasteboard: \(service.pasteboard.string(forType: .string) ?? "<empty>")")
         case "keydown":
             service.debugKey(keyCode: UInt8(int(1)), down: true)
         case "keyup":
             service.debugKey(keyCode: UInt8(int(1)), down: false)
+        case "shortcut":
+            if let id = window(1), !service.debugShortcut(window: id, keyCode: UInt8(int(2))) { log("step '\(step)': not a shortcut") }
         case "close":
             if let id = window(1) { service.debugClose(window: id) }
         case "dump":

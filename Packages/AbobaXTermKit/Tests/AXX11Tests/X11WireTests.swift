@@ -91,4 +91,25 @@ import Testing
         let fields = line.dropFirst(5).trimmingCharacters(in: CharacterSet(charactersIn: "\"")).split(separator: " ")
         #expect(fields.map(String.init) == ["abobaxterm/unix:41", "MIT-MAGIC-COOKIE-1", authority.hex])
     }
+
+    @Test func locatesTheBundledServer() throws {
+        // A tree laid out like Vendor/xserver (and Contents/Resources/xserver in the app).
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("abx-xserver-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bin = root.appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let binary = bin.appendingPathComponent("Xvfb")
+        try Data("#!/bin/sh\n".utf8).write(to: binary)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+
+        // Development override pointing at the tree: the keyboard data next to it is used.
+        let tree = try #require(X11ServerInstallation.locate(environment: ["ABX_X11_SERVER": root.path]))
+        #expect(tree.executable == binary.path)
+        #expect(tree.xkbDirectory == root.appendingPathComponent("share/X11/xkb").path)
+
+        // Override pointing at a binary: keyboard data only if given.
+        let single = try #require(X11ServerInstallation.locate(environment: ["ABX_X11_SERVER": binary.path]))
+        #expect(single.executable == binary.path)
+        #expect(single.xkbDirectory == nil)
+    }
 }

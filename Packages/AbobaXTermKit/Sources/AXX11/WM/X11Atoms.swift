@@ -19,6 +19,10 @@ enum XAtom: String, CaseIterable, Sendable {
     case timestamp = "TIMESTAMP"
     case incr = "INCR"
     case abxSelection = "_ABX_SELECTION"
+    case manager = "MANAGER"
+    case resourceManager = "RESOURCE_MANAGER"
+    case xsettingsScreen = "_XSETTINGS_S0"
+    case xsettingsSettings = "_XSETTINGS_SETTINGS"
 
     // ICCCM
     case wmName = "WM_NAME"

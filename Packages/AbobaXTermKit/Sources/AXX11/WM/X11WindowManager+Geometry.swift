@@ -131,6 +131,7 @@ extension X11WindowManager {
         syncStackingFromScreen()
         giveFocus(to: window)
         keyboard.syncModifiers(NSEvent.modifierFlags)
+        offerPasteboard()
     }
 
     func hostResignedKey(_ window: X11Window) {
@@ -138,8 +139,17 @@ extension X11WindowManager {
         // Another X window may be taking over; decide once AppKit has settled.
         DispatchQueue.main.async { [weak self] in
             guard let self, !(NSApp.keyWindow is X11HostWindow), self.focusedWindow == window.id else { return }
+            self.dismissMenus()
             self.dropFocus()
         }
+    }
+
+    /// Open menus hold a grab and would stay up after the user clicked
+    /// elsewhere on the Mac: close them the way the user would, with Escape
+    /// (one per menu level).
+    func dismissMenus() {
+        let open = windows.values.filter { $0.isMapped && $0.overrideRedirect && $0.properties.kind == .menu }.count
+        for _ in 0..<open { keyboard.tap(keyCode: 53) }
     }
 
     /// Gives X keyboard focus according to the client's ICCCM input model.

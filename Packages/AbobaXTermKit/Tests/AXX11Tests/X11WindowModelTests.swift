@@ -114,12 +114,70 @@ import Testing
         russian.plain[0] = 0x6C6; russian.shifted[0] = 0x6E6 // ф Ф
         #expect(!latin.isNonLatin && russian.isNonLatin)
 
+        // Rows are indexed by X keycode - 8: "A" is evdev 30 (keycode 38), Return evdev 28 (keycode 36).
         let single = X11KeyboardLayout.keymap(primary: latin, secondary: nil)
-        #expect(single.count == 128 * 4)
-        #expect(Array(single[0..<4]) == [0x61, 0x41, 0, 0])
+        #expect(single.count == 248 * 4)
+        #expect(Array(single[30 * 4..<30 * 4 + 4]) == [0x61, 0x41, 0, 0])
 
         let dual = X11KeyboardLayout.keymap(primary: latin, secondary: russian)
-        #expect(Array(dual[0..<4]) == [0x61, 0x41, 0x6C6, 0x6E6])
-        #expect(Array(dual[36 * 4..<36 * 4 + 4]) == [0xFF0D, 0xFF0D, 0, 0])
+        #expect(Array(dual[30 * 4..<30 * 4 + 4]) == [0x61, 0x41, 0x6C6, 0x6E6])
+        #expect(Array(dual[28 * 4..<28 * 4 + 4]) == [0xFF0D, 0xFF0D, 0, 0])
+    }
+
+    @Test func keycodesFollowTheLinuxConvention() {
+        // The same numbers `xev` shows on a Linux desktop.
+        #expect(X11Keycode.forMacKey(0) == 38) // A
+        #expect(X11Keycode.forMacKey(36) == 36) // Return
+        #expect(X11Keycode.forMacKey(49) == 65) // space
+        #expect(X11Keycode.forMacKey(53) == 9) // Escape
+        #expect(X11Keycode.forMacKey(123) == 113) // Left
+        #expect(X11Keycode.forMacKey(56) == X11Keycode.shiftL)
+        #expect(X11Keycode.forMacKey(55) == X11Keycode.superL)
+        #expect(X11Keycode.forMacKey(63) == nil) // Fn
+        // No two Mac keys share a keycode.
+        #expect(Set(X11Keycode.evdev.values).count == X11Keycode.evdev.count)
+    }
+
+    @Test func settingsEncodeForXSETTINGS() {
+        let settings = X11Settings(values: ["Gdk/WindowScalingFactor": .int(2), "Xft/RGBA": .string("none")])
+        let bytes = settings.encoded(serial: 7)
+        #expect(bytes.u8(0) == 0 && bytes.u32(4) == 7 && bytes.u32(8) == 2)
+        // First entry (sorted by name): integer, 23-byte name padded to 24, serial, value.
+        #expect(bytes.u8(12) == 0 && bytes.u16(14) == 23)
+        #expect(String(decoding: bytes.slice(16, 23), as: UTF8.self) == "Gdk/WindowScalingFactor")
+        #expect(bytes.u32(40) == 7 && bytes.i32(44) == 2)
+        // Second entry: string with a length prefix.
+        #expect(bytes.u8(48) == 1 && bytes.u16(50) == 8)
+        #expect(bytes.u32(64) == 4 && String(decoding: bytes.slice(68, 4), as: UTF8.self) == "none")
+        #expect(bytes.count == 72)
+        #expect(X11Settings.resources(scale: 2).contains("Xft.dpi:\t192\n"))
+    }
+
+    @Test func commandShortcutsFollowTheProgram() {
+        let c: UInt32 = 0x63, v: UInt32 = 0x76, z: UInt32 = 0x7A, k: UInt32 = 0x6B
+        // Regular programs: Control+key.
+        let gtk = X11ShortcutStyle(instanceName: "virt-manager", className: "Virt-manager")
+        #expect(gtk == .standard)
+        #expect(X11Shortcut.action(forKeysym: c, style: gtk) == .control(shift: false))
+        #expect(X11Shortcut.action(forKeysym: z, style: gtk) == .control(shift: false))
+        #expect(X11Shortcut.action(forKeysym: k, style: gtk) == nil)
+        // Cyrillic or special keysyms are never shortcuts.
+        #expect(X11Shortcut.action(forKeysym: 0x6D3, style: gtk) == nil)
+        #expect(X11Shortcut.action(forKeysym: 0xFF0D, style: gtk) == nil)
+
+        // Classic terminals: PRIMARY and Shift+Insert, never Control+C.
+        let xterm = X11ShortcutStyle(instanceName: "xterm", className: "XTerm")
+        #expect(xterm == .selectionTerminal)
+        #expect(X11Shortcut.action(forKeysym: c, style: xterm) == .copySelection)
+        #expect(X11Shortcut.action(forKeysym: v, style: xterm) == .pasteSelection)
+        #expect(X11Shortcut.action(forKeysym: z, style: xterm) == .ignore)
+        #expect(X11ShortcutStyle(instanceName: "urxvt", className: "URxvt") == .selectionTerminal)
+
+        // Modern terminals: Control+Shift+C / V.
+        let gnome = X11ShortcutStyle(instanceName: "gnome-terminal-server", className: "Gnome-terminal")
+        #expect(gnome == .terminal)
+        #expect(X11Shortcut.action(forKeysym: c, style: gnome) == .control(shift: true))
+        #expect(X11Shortcut.action(forKeysym: z, style: gnome) == .ignore)
+        #expect(X11ShortcutStyle(instanceName: nil, className: nil) == .standard)
     }
 }

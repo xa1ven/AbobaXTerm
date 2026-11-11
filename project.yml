@@ -30,6 +30,10 @@ targets:
     platform: macOS
     sources:
       - App
+      # Built-in X server (Scripts/build-xserver.sh), copied to Contents/Resources/xserver.
+      - path: Vendor/xserver
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mikhail.AbobaXTerm

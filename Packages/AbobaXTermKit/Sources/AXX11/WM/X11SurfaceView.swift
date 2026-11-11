@@ -8,6 +8,8 @@ protocol X11SurfaceInput: AnyObject {
     func surface(_ view: X11SurfaceView, button: Int, pressed: Bool, at point: CGPoint)
     func surface(_ view: X11SurfaceView, scrollBy delta: CGSize, precise: Bool, at point: CGPoint)
     func surface(_ view: X11SurfaceView, key event: NSEvent, pressed: Bool)
+    /// A Command combination, before the app's menus see it. True if it was consumed.
+    func surface(_ view: X11SurfaceView, shortcut event: NSEvent) -> Bool
     func surface(_ view: X11SurfaceView, modifiersChanged event: NSEvent)
     func surfacePointerEntered(_ view: X11SurfaceView)
 }
@@ -192,6 +194,15 @@ final class X11SurfaceView: NSView {
     }
 
     // MARK: Keyboard
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Copy, paste and the like belong to the X program, not to the app's Edit menu.
+        if event.type == .keyDown, let window, window.isKeyWindow, window.firstResponder === self,
+           input?.surface(self, shortcut: event) == true {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 
     override func keyDown(with event: NSEvent) { input?.surface(self, key: event, pressed: true) }
     override func keyUp(with event: NSEvent) { input?.surface(self, key: event, pressed: false) }

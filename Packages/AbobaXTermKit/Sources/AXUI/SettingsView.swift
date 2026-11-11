@@ -75,6 +75,14 @@ private struct X11StatusRow: View {
                 .foregroundStyle(isHealthy ? .green : .orange)
         }
         .onAppear(perform: refresh)
+        Toggle(isOn: Binding(get: { model.x11HiDPI }, set: { model.x11HiDPI = $0 })) {
+            Text("Sharp rendering on Retina displays")
+            Text("Programs draw at double resolution. Turn off if an old program that cannot scale looks too small. Applies once all X11 windows are closed.")
+        }
+        Toggle(isOn: Binding(get: { model.x11CommandShortcuts }, set: { model.x11CommandShortcuts = $0 })) {
+            Text("⌘C, ⌘V, ⌘X, ⌘A and ⌘Z in X11 windows")
+            Text("Copy, paste, cut, select all and undo, sent the way each program expects. Turn off to pass Command through as the Super (Windows) key, for example to a virtual machine’s console.")
+        }
         Text("Sessions with “X11 forwarding” show programs from the server as windows on this Mac. Nothing else needs to be installed.")
             .font(.callout)
             .foregroundStyle(.secondary)

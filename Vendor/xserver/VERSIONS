@@ -1,0 +1,16 @@
+X server bundled with AbobaXTerm, built by Scripts/build-xserver.sh from these X.org releases
+(MIT/X11-style licenses; sources at https://www.x.org/releases/individual/):
+
+  xorgproto          2026.1
+  xtrans             1.6.0
+  libXau             1.0.12
+  xcb-proto          1.17.0
+  libxcb             1.17.0
+  libX11             1.8.14
+  libxkbfile         1.2.0
+  libfontenc         1.1.9
+  libXfont2          2.0.9
+  pixman             0.46.4
+  xorg-server        21.1.26
+  xkbcomp            1.5.0
+  xkeyboard-config   2.47

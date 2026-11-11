@@ -73,6 +73,11 @@ struct X11WindowProperties: Equatable, Sendable {
         return className ?? instanceName ?? "X11"
     }
 
+    /// How copy and paste shortcuts work in this program.
+    var shortcutStyle: X11ShortcutStyle {
+        X11ShortcutStyle(instanceName: instanceName, className: className)
+    }
+
     /// Applies a freshly read property; returns false for properties that are not tracked.
     @discardableResult
     mutating func apply(_ atom: XAtom, _ value: XProperty?, atoms: XAtomTable) -> Bool {

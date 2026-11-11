@@ -76,6 +76,20 @@ public final class AppModel {
             for tab in tabs { tab.terminalView.highlighter.isEnabled = highlightOutput }
         }
     }
+    /// Render X11 programs at Retina resolution (they are told to draw at 2x).
+    public var x11HiDPI: Bool {
+        didSet {
+            UserDefaults.standard.set(x11HiDPI, forKey: Self.x11HiDPIKey)
+            x11.prefersHiDPI = x11HiDPI
+        }
+    }
+    /// Command+C/V/X/A/Z work as copy, paste, cut, select all and undo in X11 programs.
+    public var x11CommandShortcuts: Bool {
+        didSet {
+            UserDefaults.standard.set(x11CommandShortcuts, forKey: Self.x11ShortcutsKey)
+            x11.translatesCommandShortcuts = x11CommandShortcuts
+        }
+    }
     /// How long a master connection stays open after its last tab closes.
     public var controlPersistMinutes: Int {
         didSet {
@@ -104,6 +118,8 @@ public final class AppModel {
     private static let appearanceKey = "appearance"
     private static let controlPersistKey = "controlPersistMinutes"
     private static let highlightKey = "highlightOutput"
+    private static let x11HiDPIKey = "x11HiDPI"
+    private static let x11ShortcutsKey = "x11CommandShortcuts"
     public static let controlPersistChoices = [1, 5, 10, 30, 60]
 
     public init(paths: AppPaths = .standard, askpassHelperPath: String?) {
@@ -118,7 +134,13 @@ public final class AppModel {
         self.askpassHelperPath = askpassHelperPath
         self.highlightOutput = UserDefaults.standard.object(forKey: Self.highlightKey) as? Bool ?? true
 
+        let hiDPI = UserDefaults.standard.object(forKey: Self.x11HiDPIKey) as? Bool ?? true
+        self.x11HiDPI = hiDPI
         let x11 = X11Service(runtimeDirectory: paths.runtimeDirectory)
+        x11.prefersHiDPI = hiDPI
+        let shortcuts = UserDefaults.standard.object(forKey: Self.x11ShortcutsKey) as? Bool ?? true
+        self.x11CommandShortcuts = shortcuts
+        x11.translatesCommandShortcuts = shortcuts
         self.x11 = x11
         let builder = SSHCommandBuilder(controlDirectory: paths.runtimeDirectory.path,
                                         controlPersistSeconds: persistMinutes * 60,

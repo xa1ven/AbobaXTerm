@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Where the headless X server binary and its data live.
@@ -10,20 +11,34 @@ public struct X11ServerInstallation: Equatable, Sendable {
     public static func locate(bundle: Bundle = .main,
                               environment: [String: String] = ProcessInfo.processInfo.environment) -> X11ServerInstallation? {
         let fm = FileManager.default
-        if let override = environment["ABX_X11_SERVER"], fm.isExecutableFile(atPath: override) {
-            return X11ServerInstallation(executable: override, xkbDirectory: environment["ABX_X11_XKBDIR"])
-        }
-        if let resources = bundle.resourceURL {
-            let root = resources.appendingPathComponent("xserver", isDirectory: true)
-            let binary = root.appendingPathComponent("bin/Xvfb").path
-            if fm.isExecutableFile(atPath: binary) {
-                return X11ServerInstallation(executable: binary, xkbDirectory: root.appendingPathComponent("share/X11/xkb").path)
+        // Development override: a server binary, or the root of a tree laid out like the bundled one.
+        if let override = environment["ABX_X11_SERVER"] {
+            if fm.isExecutableFile(atPath: override), !isDirectory(override) {
+                return X11ServerInstallation(executable: override, xkbDirectory: environment["ABX_X11_XKBDIR"])
             }
+            if let found = bundled(at: URL(fileURLWithPath: override, isDirectory: true)) { return found }
         }
+        if let resources = bundle.resourceURL,
+           let found = bundled(at: resources.appendingPathComponent("xserver", isDirectory: true)) {
+            return found
+        }
+        // Fallback for builds made without Vendor/xserver: a server from XQuartz or Homebrew.
         for path in ["/opt/X11/bin/Xvfb", "/opt/homebrew/bin/Xvfb", "/usr/local/bin/Xvfb"] where fm.isExecutableFile(atPath: path) {
             return X11ServerInstallation(executable: path, xkbDirectory: nil)
         }
         return nil
+    }
+
+    /// The server built by Scripts/build-xserver.sh: `bin/Xvfb`, `bin/xkbcomp`, `share/X11/xkb`.
+    private static func bundled(at root: URL) -> X11ServerInstallation? {
+        let binary = root.appendingPathComponent("bin/Xvfb").path
+        guard FileManager.default.isExecutableFile(atPath: binary) else { return nil }
+        return X11ServerInstallation(executable: binary, xkbDirectory: root.appendingPathComponent("share/X11/xkb").path)
+    }
+
+    private static func isDirectory(_ path: String) -> Bool {
+        var directory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: path, isDirectory: &directory) && directory.boolValue
     }
 }
 
@@ -93,6 +108,12 @@ final class X11ServerProcess: @unchecked Sendable {
         }
         var lastFailure = "no free display"
         for display in candidates {
+            // This server build takes no lock file: starting on a display that is in use
+            // would silently replace the other server's socket. Probe it ourselves.
+            if Self.isListening(onDisplay: display) {
+                lastFailure = "display :\(display) is in use"
+                continue
+            }
             do {
                 try await launch(display: display, width: width, height: height, dpi: dpi)
             } catch let X11ServerError.startFailed(why) {
@@ -120,6 +141,23 @@ final class X11ServerProcess: @unchecked Sendable {
         if let process, process.isRunning { process.terminate() }
     }
 
+    /// True when some X server accepts connections on the display's Unix socket.
+    /// A leftover socket file nobody listens on does not count.
+    static func isListening(onDisplay display: Int) -> Bool {
+        let path = "/tmp/.X11-unix/X\(display)"
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        let bytes = Array(path.utf8)
+        guard bytes.count < MemoryLayout.size(ofValue: addr.sun_path) else { return false }
+        withUnsafeMutableBytes(of: &addr.sun_path) { $0.copyBytes(from: bytes) }
+        return withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        } == 0
+    }
+
     // MARK: Launch
 
     private func launch(display: Int, width: Int, height: Int, dpi: Int) async throws {
@@ -136,6 +174,9 @@ final class X11ServerProcess: @unchecked Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: installation.executable)
         process.arguments = arguments
+        // The bundled server runs its keymap compiler as "./xkbcomp" (the app can be
+        // anywhere on disk, so no absolute path is compiled in).
+        process.currentDirectoryURL = URL(fileURLWithPath: installation.executable).deletingLastPathComponent()
         let ready = Pipe()
         process.standardOutput = ready
         process.standardError = (try? FileHandle(forWritingTo: logFile)) ?? FileHandle.nullDevice
