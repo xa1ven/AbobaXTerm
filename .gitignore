@@ -1,0 +1,41 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Xcode (project is generated from project.yml by XcodeGen: `make project`)
+*.xcodeproj/
+*.xcworkspace/
+!Packages/**/*.xcworkspace/
+xcuserdata/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+build/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/AbobaXTermKit/.swiftpm/
+# Package.resolved files are committed on purpose (reproducible builds).
+
+# Editors / tools
+.vscode/
+.idea/
+*.swp
+*~
+
+# Secrets must never be committed
+*.pem
+*.p12
+*.key
+id_rsa*
+id_ed25519*
+.env

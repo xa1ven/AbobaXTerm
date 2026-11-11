@@ -1,0 +1,90 @@
+name: AbobaXTerm
+
+options:
+  bundleIdPrefix: com.mikhail
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Personal build: ad-hoc signature ("Sign to Run Locally").
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  AbobaXTermKit:
+    path: Packages/AbobaXTermKit
+
+targets:
+  AbobaXTerm:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mikhail.AbobaXTerm
+        PRODUCT_NAME: AbobaXTerm
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/AbobaXTerm.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_APP_SANDBOX: NO
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleName: AbobaXTerm
+        CFBundleDisplayName: AbobaXTerm
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: Personal use only.
+        NSPrincipalClass: NSApplication
+    entitlements:
+      path: App/AbobaXTerm.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+    dependencies:
+      - package: AbobaXTermKit
+        product: AXUI
+      - target: abx-askpass
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
+
+  # SSH_ASKPASS helper, copied into AbobaXTerm.app/Contents/MacOS.
+  abx-askpass:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/AbobaXTermKit/Sources/abx-askpass
+    settings:
+      base:
+        PRODUCT_NAME: abx-askpass
+        PRODUCT_BUNDLE_IDENTIFIER: com.mikhail.AbobaXTerm.askpass
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: AbobaXTermKit
+        product: AXAskpassProtocol
+
+schemes:
+  AbobaXTerm:
+    build:
+      targets:
+        AbobaXTerm: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    archive:
+      config: Release
