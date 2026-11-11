@@ -39,6 +39,20 @@ import Testing
         #expect(args.suffix(2) == ["--", "10.0.0.5"])
     }
 
+    @Test func x11UsesXQuartzXauthAndItsOwnMaster() throws {
+        let b = SSHCommandBuilder(controlDirectory: "/tmp/abx-501", xauthPath: "/opt/X11/bin/xauth")
+        let id = UUID(uuidString: "ABCDEF01-0000-0000-0000-000000000000")!
+        let x = Session(id: id, host: "srv", x11Forwarding: true)
+        let plain = Session(id: id, host: "srv")
+        let args = try b.arguments(for: x)
+        #expect(args.containsSequence(["-Y", "-o", "XAuthLocation=/opt/X11/bin/xauth"]))
+        #expect(!(try b.arguments(for: plain)).contains("XAuthLocation=/opt/X11/bin/xauth"))
+        #expect(b.controlPath(for: x) == "/tmp/abx-501/cm-abcdef01-x-%C")
+        #expect(b.controlPath(for: plain) == "/tmp/abx-501/cm-abcdef01-%C")
+        // Both share the prefix used to close masters on quit.
+        #expect(b.controlPath(for: x).contains("/" + SSHCommandBuilder.controlSocketName(for: x)))
+    }
+
     @Test func muxArgumentsReuseMasterWithoutX11() throws {
         let s = Session(host: "srv", port: 2200, user: "me", x11Forwarding: true)
         let sftp = try builder.muxArguments(for: s, subsystem: "sftp")

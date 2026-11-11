@@ -1,6 +1,7 @@
 import AppKit
 import AXModels
 import AXStorage
+import AXSSH
 import SwiftUI
 
 /// Collapsible parts of the session editor.
@@ -133,7 +134,14 @@ struct SessionEditorView: View {
             TextField("Jump host", text: $jumpText, prompt: Text(""))
             TextField("Extra options", text: $session.extraOptions, prompt: Text(""))
                 .font(.system(.body, design: .monospaced))
-            Toggle("X11 forwarding", isOn: $session.x11Forwarding)
+            Toggle(isOn: $session.x11Forwarding) {
+                Text("X11 forwarding")
+                if session.x11Forwarding && !X11Support.isInstalled {
+                    Text("XQuartz is not installed: \(X11Support.installCommand)")
+                        .foregroundStyle(.orange)
+                        .textSelection(.enabled)
+                }
+            }
             LabeledContent("Command") {
                 Text(validationError == nil ? model.commandLinePreview(for: composed) : "—")
                     .font(.system(.caption, design: .monospaced))

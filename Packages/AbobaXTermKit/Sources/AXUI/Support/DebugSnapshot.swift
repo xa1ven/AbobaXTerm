@@ -84,6 +84,25 @@ enum DebugSnapshot {
                 v.subviews.forEach { walk($0, depth + 1) }
             }
             for w in NSApp.windows where w.isVisible { if let c = w.contentView { walk(c, 0) } }
+        case "x11":
+            // Same as "sftp" with X11 forwarding; then starts xeyes on the "server".
+            let env = ProcessInfo.processInfo.environment
+            let parts = (env["ABX_SNAPSHOT_SSH"] ?? "").split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 4 else { return }
+            let session = Session(id: debugSessionID, name: "Debug X11", host: parts[0], port: Int(parts[1]),
+                                  auth: .publicKey(path: parts[2]), extraOptions: parts[3], x11Forwarding: true)
+            model.openTab(.ssh(session, isSaved: false))
+            let command = env["ABX_SNAPSHOT_X11_CMD"] ?? "/opt/X11/bin/xeyes"
+            Task { @MainActor in
+                for _ in 0..<80 {
+                    if model.selectedTab?.state == .running { break }
+                    try? await Task.sleep(for: .milliseconds(250))
+                }
+                try? await Task.sleep(for: .seconds(2))
+                model.selectedTab?.terminalView.send(txt: "echo DISPLAY=$DISPLAY; \(command) &\r")
+            }
+        case "wait":
+            break
         case "sftp":
             // ABX_SNAPSHOT_SSH="host|port|keyPath|extra ssh options", ABX_SNAPSHOT_SFTP_DIR=/remote/dir
             let env = ProcessInfo.processInfo.environment

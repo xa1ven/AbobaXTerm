@@ -56,6 +56,8 @@ public final class AppModel {
     public var deletionRequest: DeletionRequest?
     public var folderNameRequest: FolderNameRequest?
     public var errorMessage: ErrorMessage?
+    /// X11 session opened while XQuartz is missing: asks what to do.
+    public var x11MissingRequest: Session?
 
     // MARK: Settings (persisted in UserDefaults)
 
@@ -358,7 +360,18 @@ public final class AppModel {
 
     public func connect(sessionID: UUID) {
         guard let session = library.session(id: sessionID) else { return }
+        if session.x11Forwarding && !X11Support.isInstalled {
+            x11MissingRequest = session
+            return
+        }
         openTab(.ssh(session, isSaved: true))
+    }
+
+    /// Connects once with X11 turned off (the saved session is unchanged).
+    public func connectWithoutX11(_ session: Session) {
+        var copy = session
+        copy.x11Forwarding = false
+        openTab(.ssh(copy, isSaved: true))
     }
 
     public func connectSelection() {

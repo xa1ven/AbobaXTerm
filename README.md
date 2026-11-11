@@ -52,6 +52,11 @@ Packages/AbobaXTermKit/      all logic, as a local Swift package
   (`SSH_ASKPASS_REQUIRE=force`); the helper forwards the prompt to the app over a private Unix socket,
   and the app answers from the Keychain or shows a native dialog. Saved passwords are only auto-filled
   when the prompt names the session's own host, never a jump host.
+- X11: sessions with "X11 forwarding" run `ssh -Y -o XAuthLocation=/opt/X11/bin/xauth` (macOS ssh
+  otherwise looks for xauth in `/usr/X11R6`, which does not exist). DISPLAY is the launchd socket
+  XQuartz registers at login, so XQuartz starts on the first X window; without it the app launches
+  XQuartz and uses `:0`. X11 sessions use a separate master (`cm-<id>-x-…`), because a master forwards
+  X11 to the DISPLAY it was started with.
 - Data: `~/Library/Application Support/AbobaXTerm/sessions.json` (+ `.bak`).
 
 ## Integration test (optional)

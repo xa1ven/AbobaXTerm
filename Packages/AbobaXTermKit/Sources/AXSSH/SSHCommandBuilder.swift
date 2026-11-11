@@ -28,20 +28,26 @@ public struct SSHCommandBuilder: Sendable {
     public var controlDirectory: String
     /// How long the master connection stays alive after the last client exits.
     public var controlPersistSeconds: Int
+    /// xauth used for X11 forwarding. macOS ssh defaults to /usr/X11R6/bin/xauth,
+    /// which does not exist; XQuartz installs it in /opt/X11/bin.
+    public var xauthPath: String?
 
-    public init(sshPath: String = "/usr/bin/ssh", controlDirectory: String, controlPersistSeconds: Int = 600) {
+    public init(sshPath: String = "/usr/bin/ssh", controlDirectory: String, controlPersistSeconds: Int = 600,
+                xauthPath: String? = X11Support.xauthPath) {
         self.sshPath = sshPath
         self.controlDirectory = controlDirectory
         self.controlPersistSeconds = controlPersistSeconds
+        self.xauthPath = xauthPath
     }
 
     public static let controlSocketPrefix = "cm-"
 
-    /// Per-session ControlPath. The session id keeps sessions with different
-    /// options (e.g. X11) from sharing one master; `%C` is ssh's hash of
-    /// local host, remote host, port, user and jump host.
+    /// Per-session ControlPath; `%C` is ssh's hash of local host, remote
+    /// host, port, user and jump host. X11 sessions get their own master:
+    /// the master forwards X11 to the DISPLAY it was started with, so a
+    /// master opened without X11 must not be reused once it is turned on.
     public func controlPath(for session: Session) -> String {
-        "\(controlDirectory)/\(Self.controlSocketName(for: session))%C"
+        "\(controlDirectory)/\(Self.controlSocketName(for: session))\(session.x11Forwarding ? "x-" : "")%C"
     }
 
     /// File-name prefix of this session's master sockets, e.g. "cm-abcdef01-".
@@ -88,6 +94,7 @@ public struct SSHCommandBuilder: Sendable {
 
         if session.x11Forwarding {
             args.append("-Y")
+            if let xauthPath { args += ["-o", "XAuthLocation=\(xauthPath)"] }
         }
 
         do {
@@ -104,9 +111,8 @@ public struct SSHCommandBuilder: Sendable {
     /// (`ControlMaster=no`, no X11, no tty, never prompts): either a
     /// subsystem such as "sftp" or a remote command.
     public func muxArguments(for session: Session, subsystem: String? = nil, command: [String] = []) throws -> [String] {
-        var plain = session
-        plain.x11Forwarding = false
-        var args = try arguments(for: plain)
+        // Same ControlPath as the terminal (it depends on the X11 flag), but no -Y.
+        var args = try arguments(for: session).filter { $0 != "-Y" }
         if let i = args.firstIndex(of: "ControlMaster=auto") { args[i] = "ControlMaster=no" }
         guard let dashes = args.lastIndex(of: "--") else { return args }
         var options = ["-T", "-x", "-o", "BatchMode=yes"]
@@ -119,9 +125,7 @@ public struct SSHCommandBuilder: Sendable {
     /// `ssh -O check` arguments: exit status 0 when the master is up.
     /// Host, port, user and jump host must match: they feed `%C`.
     public func checkArguments(for session: Session) throws -> [String] {
-        var plain = session
-        plain.x11Forwarding = false
-        return ["-O", "check"] + (try arguments(for: plain))
+        ["-O", "check"] + (try arguments(for: session).filter { $0 != "-Y" })
     }
 
     /// Copy-pasteable command line for display and debugging.

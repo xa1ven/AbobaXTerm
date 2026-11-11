@@ -1,4 +1,5 @@
 import AXModels
+import AXSSH
 import SwiftUI
 
 /// The main window: sessions sidebar on the left, tabbed terminals on the right.
@@ -47,6 +48,20 @@ public struct MainView: View {
             presenting: model.folderNameRequest
         ) { request in
             FolderNameField(request: request)
+        }
+        .alert(
+            "XQuartz Is Not Installed",
+            isPresented: Binding(get: { model.x11MissingRequest != nil }, set: { if !$0 { model.x11MissingRequest = nil } }),
+            presenting: model.x11MissingRequest
+        ) { session in
+            Button("Connect Without X11") { model.connectWithoutX11(session) }
+            Button("Copy Install Command") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(X11Support.installCommand, forType: .string)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("“\(model.x11MissingRequest?.displayName ?? "")” uses X11 forwarding, which needs XQuartz to show windows from the server.\n\nInstall it in Terminal with:\n\(X11Support.installCommand)\nthen log out and back in.")
         }
         .alert(
             model.errorMessage?.title ?? "",

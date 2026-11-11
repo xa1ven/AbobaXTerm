@@ -12,6 +12,8 @@ public struct SSHLaunchSpec: Sendable {
     /// Askpass registration; pass to `SSHLauncher.finish(_:)` when ssh exits.
     public var askpassToken: String?
     public var commandLine: String
+    /// Things to tell the user in the terminal before ssh starts (e.g. X11 problems).
+    public var notices: [String] = []
 }
 
 /// Turns a session into an `SSHLaunchSpec`: builds arguments, resolves the
@@ -47,12 +49,23 @@ public struct SSHLauncher: Sendable {
             ))
         }
 
+        var extra: [String: String] = [:]
+        var notices: [String] = []
+        if session.x11Forwarding {
+            do {
+                extra["DISPLAY"] = try await X11Support.prepareDisplay()
+            } catch {
+                notices.append("X11: \(error.localizedDescription) Windows from the server will not open.")
+            }
+        }
+
         return SSHLaunchSpec(
             executable: builder.sshPath,
             arguments: arguments,
-            environment: environment(token: token),
+            environment: environment(token: token, extra: extra),
             askpassToken: token,
-            commandLine: ShellWords.join(["ssh"] + arguments)
+            commandLine: ShellWords.join(["ssh"] + arguments),
+            notices: notices
         )
     }
 
@@ -60,8 +73,8 @@ public struct SSHLauncher: Sendable {
         if let token = spec.askpassToken { broker?.unregister(token) }
     }
 
-    func environment(token: String?) -> [String] {
-        var extra: [String: String] = [:]
+    func environment(token: String?, extra: [String: String] = [:]) -> [String] {
+        var extra = extra
         if let token, let helper = askpassHelperPath, let broker {
             extra["SSH_ASKPASS"] = helper
             extra["SSH_ASKPASS_REQUIRE"] = "force"

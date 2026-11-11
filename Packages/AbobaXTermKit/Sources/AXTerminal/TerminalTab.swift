@@ -115,6 +115,9 @@ public final class TerminalTab: Identifiable {
                 }
                 self.spec = spec
                 self.commandLine = spec.commandLine
+                for notice in spec.notices {
+                    self.terminalView.feed(text: "\u{1B}[33m\(notice)\u{1B}[0m\r\n")
+                }
                 self.terminalView.startProcess(
                     executable: spec.executable,
                     args: spec.arguments,

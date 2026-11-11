@@ -41,6 +41,10 @@ public struct SettingsView: View {
                 }
             }
 
+            Section("X11") {
+                X11StatusRow()
+            }
+
             Section("Data") {
                 LabeledContent("Sessions") {
                     Button("Show in Finder") {
@@ -57,4 +61,34 @@ public struct SettingsView: View {
 
 extension AppModel {
     var localShellPath: String { TerminalEnvironment.userShell }
+}
+
+/// Whether XQuartz is installed, with the install command if not.
+private struct X11StatusRow: View {
+    @State private var installed = X11Support.isInstalled
+
+    var body: some View {
+        LabeledContent("XQuartz") {
+            if installed {
+                Label("Installed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                HStack {
+                    Text(X11Support.installCommand)
+                        .font(.system(.callout, design: .monospaced))
+                        .textSelection(.enabled)
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(X11Support.installCommand, forType: .string)
+                    }
+                }
+            }
+        }
+        .onAppear { installed = X11Support.isInstalled }
+        if !installed {
+            Text("Needed for X11 forwarding. After installing, log out and back in once.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
 }
