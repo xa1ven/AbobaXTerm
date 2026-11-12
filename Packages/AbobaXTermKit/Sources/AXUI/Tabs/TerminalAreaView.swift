@@ -17,6 +17,11 @@ struct TerminalAreaView: View {
                     .overlay(alignment: .bottom) {
                         DisconnectedBanner(tab: tab)
                     }
+                if model.monitorEnabled, let monitor = model.monitors[tab.id] {
+                    Divider()
+                    ServerStatusBar(tab: tab, monitor: monitor)
+                        .id(tab.id)
+                }
             } else {
                 EmptyStateView()
             }

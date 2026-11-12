@@ -41,6 +41,19 @@ public struct SettingsView: View {
                 }
             }
 
+            Section("Server Monitoring") {
+                Toggle(isOn: $model.monitorEnabled) {
+                    Text("Status bar under SSH terminals")
+                    Text("CPU, memory, network, uptime and disks of Linux servers, read over the connection that is already open. Nothing is installed on the server.")
+                }
+                Picker("Update every", selection: $model.monitorInterval) {
+                    ForEach(AppModel.monitorIntervalChoices, id: \.self) { seconds in
+                        Text(seconds == 1 ? "1 second" : "\(seconds) seconds").tag(seconds)
+                    }
+                }
+                .disabled(!model.monitorEnabled)
+            }
+
             Section("X11") {
                 X11StatusRow()
             }

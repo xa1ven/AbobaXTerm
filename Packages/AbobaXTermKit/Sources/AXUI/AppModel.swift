@@ -42,6 +42,10 @@ public final class AppModel {
     /// SFTP browsers of SSH tabs, by tab id.
     public private(set) var fileBrowsers: [UUID: FileBrowserModel] = [:]
 
+    /// Server statistics of SSH tabs, keyed by tab id.
+    private(set) var monitors: [UUID: ServerMonitor] = [:]
+    var sshBuilder: SSHCommandBuilder { launcher.builder }
+
     public func fileBrowser(for tab: TerminalTab) -> FileBrowserModel? {
         fileBrowsers[tab.id]
     }
@@ -90,6 +94,14 @@ public final class AppModel {
             x11.translatesCommandShortcuts = x11CommandShortcuts
         }
     }
+    /// Status bar with live server statistics under SSH terminals.
+    public var monitorEnabled: Bool {
+        didSet { UserDefaults.standard.set(monitorEnabled, forKey: Self.monitorEnabledKey) }
+    }
+    /// Seconds between two readings of the server's counters.
+    public var monitorInterval: Int {
+        didSet { UserDefaults.standard.set(monitorInterval, forKey: Self.monitorIntervalKey) }
+    }
     /// How long a master connection stays open after its last tab closes.
     public var controlPersistMinutes: Int {
         didSet {
@@ -120,7 +132,10 @@ public final class AppModel {
     private static let highlightKey = "highlightOutput"
     private static let x11HiDPIKey = "x11HiDPI"
     private static let x11ShortcutsKey = "x11CommandShortcuts"
+    private static let monitorEnabledKey = "serverMonitorEnabled"
+    private static let monitorIntervalKey = "serverMonitorInterval"
     public static let controlPersistChoices = [1, 5, 10, 30, 60]
+    public static let monitorIntervalChoices = [1, 2, 5, 10]
 
     public init(paths: AppPaths = .standard, askpassHelperPath: String?) {
         self.paths = paths
@@ -133,6 +148,9 @@ public final class AppModel {
         self.controlPersistMinutes = persistMinutes
         self.askpassHelperPath = askpassHelperPath
         self.highlightOutput = UserDefaults.standard.object(forKey: Self.highlightKey) as? Bool ?? true
+        self.monitorEnabled = UserDefaults.standard.object(forKey: Self.monitorEnabledKey) as? Bool ?? true
+        let storedInterval = UserDefaults.standard.integer(forKey: Self.monitorIntervalKey)
+        self.monitorInterval = Self.monitorIntervalChoices.contains(storedInterval) ? storedInterval : 2
 
         let hiDPI = UserDefaults.standard.object(forKey: Self.x11HiDPIKey) as? Bool ?? true
         self.x11HiDPI = hiDPI
@@ -433,6 +451,7 @@ public final class AppModel {
         }
         if case .ssh = target {
             fileBrowsers[tab.id] = FileBrowserModel(tab: tab, builder: launcher.builder)
+            monitors[tab.id] = ServerMonitor(tab: tab)
         }
         tabs.append(tab)
         selectedTabID = tab.id
@@ -442,6 +461,7 @@ public final class AppModel {
     public func closeTab(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         fileBrowsers.removeValue(forKey: id)?.disconnect()
+        monitors[id] = nil
         tabs[index].close()
         tabs.remove(at: index)
         if selectedTabID == id {

@@ -2,6 +2,7 @@
 import AppKit
 import AXModels
 import AXSFTP
+import SwiftUI
 
 /// Fixed id so the debug master socket ("cm-d0d0d0d0-…") is easy to find and close.
 private let debugSessionID = UUID(uuidString: "D0D0D0D0-0000-0000-0000-000000000001")!
@@ -13,7 +14,7 @@ private let debugSessionID = UUID(uuidString: "D0D0D0D0-0000-0000-0000-000000000
 ///     AbobaXTerm.app/Contents/MacOS/AbobaXTerm
 ///
 /// Steps: home, local, editor, editor-auth, editor-advanced, editor-org,
-/// settings, dark, light (dark/light change the saved preference), sidebar-anim
+/// settings, monitor-details (the status bar popovers of the selected SSH tab in one window), dark, light (dark/light change the saved preference), sidebar-anim
 /// (collapses and expands the sidebar, logs its frame over time to sidebar-anim.txt). The app exits after the last step.
 @MainActor
 enum DebugSnapshot {
@@ -28,6 +29,12 @@ enum DebugSnapshot {
             // In-process only (the saved preference is untouched): glass renders
             // white in snapshots, so dark-mode text would be invisible.
             if env["ABX_SNAPSHOT_LIGHT"] != nil { NSApp.appearance = NSAppearance(named: .aqua) }
+            // ABX_SNAPSHOT_WIDTH=1500: a wider main window, e.g. to see the whole status bar.
+            if let width = env["ABX_SNAPSHOT_WIDTH"].flatMap(Double.init), let window = NSApp.windows.first(where: \.isVisible) {
+                var frame = window.frame
+                frame.size.width = width
+                window.setFrame(frame, display: true)
+            }
             for (index, step) in steps.enumerated() {
                 if step == "settings" { openSettings() } else { perform(step, model) }
                 try? await Task.sleep(for: .seconds(step == "settings" ? 3 : step.hasPrefix("sftp") ? 4 : 1.5))
@@ -142,6 +149,26 @@ enum DebugSnapshot {
             }
         case "wait":
             break
+        case "monitor-details":
+            // Every status bar popover of the selected tab, side by side in one window.
+            guard let tab = model.selectedTab, let monitor = model.monitors[tab.id], let stats = monitor.stats else { return }
+            let content = HStack(alignment: .top, spacing: 24) {
+                VStack(alignment: .leading, spacing: 24) {
+                    IdentityDetails(tab: tab, monitor: monitor)
+                    CPUDetails(stats: stats, history: monitor.cpuHistory)
+                    MemoryDetails(memory: stats.memory)
+                    UptimeDetails(stats: stats)
+                }
+                VStack(alignment: .leading, spacing: 24) {
+                    NetworkDetails(stats: stats)
+                    DiskDetails(disks: stats.disks)
+                }
+            }
+            .padding(20)
+            let window = NSWindow(contentViewController: NSHostingController(rootView: content))
+            window.title = "monitor-details"
+            window.isReleasedWhenClosed = false
+            window.makeKeyAndOrderFront(nil)
         case "sftp":
             // ABX_SNAPSHOT_SSH="host|port|keyPath|extra ssh options", ABX_SNAPSHOT_SFTP_DIR=/remote/dir
             let env = ProcessInfo.processInfo.environment
