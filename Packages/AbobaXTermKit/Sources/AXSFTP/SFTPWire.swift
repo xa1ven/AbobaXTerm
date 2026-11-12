@@ -1,3 +1,4 @@
+import AXL10n
 import Foundation
 
 /// SFTP protocol version 3 (draft-ietf-secsh-filexfer-02), as spoken by OpenSSH.
@@ -41,11 +42,11 @@ public struct SFTPError: Error, LocalizedError, Equatable, Sendable {
     public var errorDescription: String? {
         var text: String
         switch status {
-        case .noSuchFile: text = "No such file or directory"
-        case .permissionDenied: text = "Permission denied"
-        case .unsupported: text = "Operation not supported by the server"
-        case .connectionLost, .noConnection: text = "Connection lost"
-        default: text = message.isEmpty ? "SFTP error" : message
+        case .noSuchFile: text = L("No such file or directory")
+        case .permissionDenied: text = L("Permission denied")
+        case .unsupported: text = L("Operation not supported by the server")
+        case .connectionLost, .noConnection: text = L("Connection lost")
+        default: text = message.isEmpty ? L("SFTP error") : message
         }
         if let path { text += ": \(path)" }
         return text

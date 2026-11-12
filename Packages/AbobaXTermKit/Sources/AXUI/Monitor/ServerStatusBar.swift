@@ -1,3 +1,4 @@
+import AXL10n
 import AXSSH
 import AXTerminal
 import SwiftUI
@@ -12,10 +13,10 @@ struct ServerStatusBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 0) {
-            StatusItem(icon: "person.crop.circle", text: identity, help: "User and host") { IdentityDetails(tab: tab, monitor: monitor) }
+            StatusItem(icon: "person.crop.circle", text: identity, help: L("User and host")) { IdentityDetails(tab: tab, monitor: monitor) }
             if let stats = monitor.stats {
                 separator
-                StatusItem(icon: "cpu", text: StatFormat.percent(stats.cpu), minTextWidth: 32, help: "CPU load") {
+                StatusItem(icon: "cpu", text: StatFormat.percent(stats.cpu), minTextWidth: 32, help: L("CPU load")) {
                     CPUDetails(stats: stats, history: monitor.cpuHistory)
                 } accessory: {
                     Sparkline(values: monitor.cpuHistory)
@@ -24,16 +25,16 @@ struct ServerStatusBar: View {
                 separator
                 StatusItem(icon: "memorychip",
                            text: "\(StatFormat.bytes(stats.memory.used)) / \(StatFormat.bytes(stats.memory.total))",
-                           help: "Memory: used / total") { MemoryDetails(memory: stats.memory) }
+                           help: L("Memory: used / total")) { MemoryDetails(memory: stats.memory) }
                 separator
-                StatusItem(icon: "arrow.up", text: StatFormat.rate(stats.sent), minTextWidth: 54, help: "Network: sent") {
+                StatusItem(icon: "arrow.up", text: StatFormat.rate(stats.sent), minTextWidth: 54, help: L("Network: sent")) {
                     NetworkDetails(stats: stats)
                 }
-                StatusItem(icon: "arrow.down", text: StatFormat.rate(stats.received), minTextWidth: 54, help: "Network: received") {
+                StatusItem(icon: "arrow.down", text: StatFormat.rate(stats.received), minTextWidth: 54, help: L("Network: received")) {
                     NetworkDetails(stats: stats)
                 }
                 separator
-                StatusItem(icon: "clock", text: StatFormat.uptime(stats.uptime), help: "Uptime") { UptimeDetails(stats: stats) }
+                StatusItem(icon: "clock", text: StatFormat.uptime(stats.uptime), help: L("Uptime")) { UptimeDetails(stats: stats) }
                 let disks = DiskFilter.visible(stats.disks)
                 if !disks.isEmpty {
                     separator
@@ -41,7 +42,7 @@ struct ServerStatusBar: View {
                         StatusItem(icon: index == 0 ? "internaldrive" : nil,
                                    text: "\(disk.mount): \(disk.percent)%",
                                    tint: disk.percent >= 95 ? .red : disk.percent >= 85 ? .orange : nil,
-                                   help: "Disk usage") { DiskDetails(disks: stats.disks) }
+                                   help: L("Disk usage")) { DiskDetails(disks: stats.disks) }
                     }
                 }
             } else if monitor.status == .idle, tab.state.isActive {

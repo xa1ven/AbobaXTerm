@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXModels
 import AXSFTP
@@ -40,9 +41,9 @@ struct FileNameRequest: Identifiable {
 
     var title: String {
         switch kind {
-        case .newFolder: "New Folder"
-        case .newFile: "New File"
-        case .rename: "Rename"
+        case .newFolder: L("New Folder")
+        case .newFile: L("New File")
+        case .rename: L("Rename")
         }
     }
 }
@@ -234,7 +235,7 @@ public final class FileBrowserModel {
             let resolved = try await client.realPath(path)
             let attrs = try await client.attributes(resolved)
             guard attrs.isDirectory else {
-                errorText = "“\(resolved)” is not a folder."
+                errorText = L("“%@” is not a folder.", resolved)
                 return
             }
             let entries = try await client.list(resolved)
@@ -290,7 +291,7 @@ public final class FileBrowserModel {
     func handle(_ error: Error) {
         if let sftp = error as? SFTPError, sftp.status == .connectionLost || sftp.status == .noConnection {
             client = nil
-            status = .failed("Connection lost")
+            status = .failed(L("Connection lost"))
             if tab?.state.isActive == true { connect() }
             return
         }
@@ -356,15 +357,15 @@ public final class FileBrowserModel {
                 self.searchedKey = key
                 self.searchResults = paths
                 if paths.isEmpty {
-                    self.searchMessage = "No matches"
+                    self.searchMessage = L("No matches")
                 } else {
-                    self.searchMessage = truncated ? "First \(Self.searchLimit) matches" : nil
+                    self.searchMessage = truncated ? L("First %@ matches", Self.searchLimit) : nil
                     self.showSearchResult(index: 0)
                 }
             } catch {
                 guard let self, !(error is CancellationError) else { return }
                 self.isSearching = false
-                self.searchMessage = "Search failed"
+                self.searchMessage = L("Search failed")
             }
         }
     }
@@ -385,7 +386,7 @@ public final class FileBrowserModel {
     // MARK: File operations
 
     func requestNewFolder(in directory: String?) {
-        nameRequest = FileNameRequest(kind: .newFolder(in: directory ?? currentPath), name: "New Folder")
+        nameRequest = FileNameRequest(kind: .newFolder(in: directory ?? currentPath), name: L("New Folder"))
     }
 
     func requestNewFile(in directory: String?) {
@@ -404,7 +405,7 @@ public final class FileBrowserModel {
     func commitName(_ request: FileNameRequest) {
         let name = request.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !name.contains("/"), name != ".", name != ".." else {
-            errorText = "“\(name)” is not a valid name."
+            errorText = L("“%@” is not a valid name.", name)
             return
         }
         guard let client else { return }
@@ -421,7 +422,7 @@ public final class FileBrowserModel {
                     let target = SFTPClient.join(SFTPClient.parent(of: path), name)
                     guard target != path else { return }
                     if try await client.exists(target) {
-                        errorText = "“\(name)” already exists."
+                        errorText = L("“%@” already exists.", name)
                         return
                     }
                     try await client.rename(path, to: target)

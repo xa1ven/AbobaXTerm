@@ -36,6 +36,7 @@ App/                         app target (entry point, Info.plist, assets)
 Scripts/build-xserver.sh     builds Vendor/xserver from X.org sources
 Vendor/xserver/              bundled X server: bin/Xvfb, bin/xkbcomp, share/X11/xkb (see VERSIONS)
 Packages/AbobaXTermKit/      all logic, as a local Swift package
+  Sources/AXL10n             interface language (English/Russian): L("English text") lookup, Russian.swift dictionary
   Sources/AXModels           Session, Folder, SessionLibrary, quick-connect parsing
   Sources/AXStorage          JSON repository, Keychain, ~/.ssh key scanner
   Sources/AXAskpassProtocol  wire protocol + Unix socket helpers

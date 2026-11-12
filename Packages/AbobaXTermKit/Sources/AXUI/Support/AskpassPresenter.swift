@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXSSH
 
@@ -29,50 +30,50 @@ final class AskpassPresenter {
         case .password, .passphrase:
             let isPassphrase = if case .passphrase = question.kind { true } else { false }
             alert.messageText = question.isRetry
-                ? "Authentication failed — try again"
-                : (isPassphrase ? "Key passphrase for “\(question.sessionName)”" : "Password for “\(question.sessionName)”")
+                ? L("Authentication failed — try again")
+                : (isPassphrase ? L("Key passphrase for “%@”", question.sessionName) : L("Password for “%@”", question.sessionName))
             alert.informativeText = prompt
             alert.icon = NSImage(systemSymbolName: "key.fill", accessibilityDescription: nil)
             let secure = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
             field = secure
             if question.offerSave {
-                let box = NSButton(checkboxWithTitle: "Save in Keychain", target: nil, action: nil)
+                let box = NSButton(checkboxWithTitle: L("Save in Keychain"), target: nil, action: nil)
                 box.state = .on
                 saveBox = box
             }
             alert.accessoryView = stack([secure, saveBox].compactMap { $0 })
-            alert.addButton(withTitle: "Connect")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: L("Connect"))
+            alert.addButton(withTitle: L("Cancel"))
 
         case .hostKeyConfirmation:
             alert.alertStyle = .warning
-            alert.messageText = "Unknown host key for “\(question.sessionName)”"
+            alert.messageText = L("Unknown host key for “%@”", question.sessionName)
             alert.informativeText = prompt
                 .replacingOccurrences(of: "Are you sure you want to continue connecting (yes/no/[fingerprint])?", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                + "\n\nTrust this host and remember its key in ~/.ssh/known_hosts?"
-            alert.addButton(withTitle: "Trust and Connect")
-            alert.addButton(withTitle: "Cancel")
+                + "\n\n" + L("Trust this host and remember its key in ~/.ssh/known_hosts?")
+            alert.addButton(withTitle: L("Trust and Connect"))
+            alert.addButton(withTitle: L("Cancel"))
 
         case .confirm:
             alert.messageText = question.sessionName
             alert.informativeText = prompt
-            alert.addButton(withTitle: "Allow")
-            alert.addButton(withTitle: "Deny")
+            alert.addButton(withTitle: L("Allow"))
+            alert.addButton(withTitle: L("Deny"))
 
         case .notice:
             alert.messageText = question.sessionName
             alert.informativeText = prompt
-            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: L("OK"))
 
         case .other:
-            alert.messageText = "“\(question.sessionName)” asks:"
+            alert.messageText = L("“%@” asks:", question.sessionName)
             alert.informativeText = prompt
             let plain = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
             field = plain
             alert.accessoryView = stack([plain])
-            alert.addButton(withTitle: "Send")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: L("Send"))
+            alert.addButton(withTitle: L("Cancel"))
         }
 
         if let field { alert.window.initialFirstResponder = field }

@@ -6,6 +6,11 @@ import SwiftUI
 struct AbobaXTermApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    init() {
+        // Before AppKit builds the standard menus, so they follow the app language.
+        L10n.shared.applyToSystem()
+    }
+
     var body: some Scene {
         Window("AbobaXTerm", id: "main") {
             MainView()
@@ -39,18 +44,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let unsaved = Self.model.hasUnsavedWork
         guard active > 0 || unsaved else { return .terminateNow }
         let alert = NSAlert()
-        alert.messageText = "Quit AbobaXTerm?"
+        alert.messageText = L("Quit AbobaXTerm?")
         var lines: [String] = []
         if active > 0 {
-            lines.append(active == 1 ? "1 connection is open and will be closed."
-                                     : "\(active) connections are open and will be closed.")
+            lines.append(LN(active, "%@ connection is open and will be closed.", "%@ connections are open and will be closed."))
         }
         if unsaved {
-            lines.append("Unsaved remote files or running transfers will be lost.")
+            lines.append(L("Unsaved remote files or running transfers will be lost."))
         }
         alert.informativeText = lines.joined(separator: "\n")
-        alert.addButton(withTitle: "Quit")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L("Quit"))
+        alert.addButton(withTitle: L("Cancel"))
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 

@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import Synchronization
 import SwiftTerm
@@ -85,7 +86,7 @@ public final class AXTerminalView: TerminalView {
     }
 
     fileprivate func processFailed(_ error: LocalProcessError) {
-        feed(text: "\r\nProcess launch failed: \(error)\r\n")
+        feed(text: "\r\n" + L("Process launch failed: %@", "\(error)") + "\r\n")
         processDelegate?.terminalProcessFailedToStart("\(error)")
     }
 

@@ -1,4 +1,5 @@
 import AppKit
+import AXL10n
 
 /// App-wide light/dark override.
 public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
@@ -8,9 +9,9 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .system: "System"
-        case .light: "Light"
-        case .dark: "Dark"
+        case .system: L("System")
+        case .light: L("Light")
+        case .dark: L("Dark")
         }
     }
 

@@ -1,3 +1,4 @@
+import AXL10n
 import AXSFTP
 import Foundation
 import Observation
@@ -87,8 +88,8 @@ public final class TransferQueue {
         guard running < maxConcurrent, let next = items.first(where: { $0.state == .queued }) else { return }
         guard let client = clientProvider() else {
             for item in items where item.state == .queued {
-                item.state = .failed("Not connected")
-                item.completion?(SFTPError(status: .noConnection, message: "Not connected"))
+                item.state = .failed(L("Not connected"))
+                item.completion?(SFTPError(status: .noConnection, message: L("Not connected")))
             }
             return
         }

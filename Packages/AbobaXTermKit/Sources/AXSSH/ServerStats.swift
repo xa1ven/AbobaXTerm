@@ -1,3 +1,4 @@
+import AXL10n
 import Foundation
 
 /// Raw counters read from a Linux server in one monitoring tick.
@@ -208,9 +209,9 @@ public enum StatFormat {
     public static func uptime(_ seconds: TimeInterval) -> String {
         let total = Int(max(0, seconds))
         let (days, hours, minutes) = (total / 86400, total % 86400 / 3600, total % 3600 / 60)
-        if days > 0 { return hours > 0 ? "\(days) d \(hours) h" : "\(days) d" }
-        if hours > 0 { return minutes > 0 ? "\(hours) h \(minutes) min" : "\(hours) h" }
-        return minutes > 0 ? "\(minutes) min" : "\(total) s"
+        if days > 0 { return hours > 0 ? L("%1$@ d %2$@ h", days, hours) : L("%@ d", days) }
+        if hours > 0 { return minutes > 0 ? L("%1$@ h %2$@ min", hours, minutes) : L("%@ h", hours) }
+        return minutes > 0 ? L("%@ min", minutes) : L("%@ s", total)
     }
 
     public static func percent(_ share: Double) -> String {

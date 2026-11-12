@@ -1,3 +1,4 @@
+import AXL10n
 import AXSSH
 import AXTerminal
 import SwiftUI
@@ -35,14 +36,14 @@ struct IdentityDetails: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            DetailTitle("Connection")
+            DetailTitle(L("Connection"))
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 4) {
-                if let user = monitor.user { row("User", user) }
-                if let host = monitor.host { row("Host name", host) }
-                if let session = tab.session { row("Address", session.target) }
+                if let user = monitor.user { row(L("User"), user) }
+                if let host = monitor.host { row(L("Host name"), host) }
+                if let session = tab.session { row(L("Address"), session.target) }
             }
             if monitor.status == .unavailable {
-                Text("Statistics are not available for this server (they need Linux with /proc).")
+                Text(L("Statistics are not available for this server (they need Linux with /proc)."))
                     .foregroundStyle(.secondary)
                     .frame(width: 260, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -65,18 +66,18 @@ struct CPUDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                DetailTitle("CPU")
+                DetailTitle(L("CPU"))
                 Spacer()
                 Text(StatFormat.percent(stats.cpu)).monospacedDigit()
             }
             Sparkline(values: history).frame(height: 48)
             if stats.load.count == 3 {
-                LabeledContent("Load average") {
+                LabeledContent(L("Load average")) {
                     Text(stats.load.map { String(format: "%.2f", $0) }.joined(separator: "  ")).monospacedDigit()
                 }
             }
             if stats.cores.count > 1 {
-                Text("\(stats.cores.count) cores").foregroundStyle(.secondary)
+                Text(LN(stats.cores.count, "%@ core", "%@ cores")).foregroundStyle(.secondary)
                 let columns = stats.cores.count > 16 ? 4 : stats.cores.count > 4 ? 2 : 1
                 ScrollView {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns), spacing: 5) {
@@ -103,22 +104,22 @@ struct MemoryDetails: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            DetailTitle("Memory")
+            DetailTitle(L("Memory"))
             UsageBar(share: memory.total > 0 ? Double(memory.used) / Double(memory.total) : 0)
             Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 4) {
-                row("Total", memory.total)
-                row("Used", memory.used)
-                row("Available", memory.available)
-                row("Free", memory.free)
-                row("Buffers and cache", memory.buffers + memory.cached)
+                row(L("Total"), memory.total)
+                row(L("Used"), memory.used)
+                row(L("Available"), memory.available)
+                row(L("Free"), memory.free)
+                row(L("Buffers and cache"), memory.buffers + memory.cached)
             }
             if memory.swapTotal > 0 {
                 Divider()
-                Text("Swap").foregroundStyle(.secondary)
+                Text(L("Swap")).foregroundStyle(.secondary)
                 UsageBar(share: Double(memory.swapUsed) / Double(memory.swapTotal), tint: .orange)
                 Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 4) {
-                    row("Total", memory.swapTotal)
-                    row("Used", memory.swapUsed)
+                    row(L("Total"), memory.swapTotal)
+                    row(L("Used"), memory.swapUsed)
                 }
             }
         }
@@ -138,14 +139,14 @@ struct NetworkDetails: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            DetailTitle("Network")
+            DetailTitle(L("Network"))
             Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 4) {
                 GridRow {
-                    Text("Interface").gridColumnAlignment(.leading)
-                    Label("Sent", systemImage: "arrow.up")
-                    Label("Received", systemImage: "arrow.down")
-                    Text("Total sent")
-                    Text("Total received")
+                    Text(L("Interface")).gridColumnAlignment(.leading)
+                    Label(L("Sent"), systemImage: "arrow.up")
+                    Label(L("Received"), systemImage: "arrow.down")
+                    Text(L("Total sent"))
+                    Text(L("Total received"))
                 }
                 .foregroundStyle(.secondary)
                 ForEach(stats.interfaces) { interface in
@@ -162,7 +163,7 @@ struct NetworkDetails: View {
             }
             .lineLimit(1)
             .fixedSize()
-            Text("The status bar adds up physical interfaces; loopback, tunnels, bridges and container interfaces (dimmed) are left out.")
+            Text(L("The status bar adds up physical interfaces; loopback, tunnels, bridges and container interfaces (dimmed) are left out."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 400, alignment: .leading)
@@ -176,14 +177,14 @@ struct UptimeDetails: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            DetailTitle("Uptime")
+            DetailTitle(L("Uptime"))
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 4) {
                 GridRow {
-                    Text("Running for").foregroundStyle(.secondary)
+                    Text(L("Running for")).foregroundStyle(.secondary)
                     Text(StatFormat.uptime(stats.uptime))
                 }
                 GridRow {
-                    Text("Started").foregroundStyle(.secondary)
+                    Text(L("Started")).foregroundStyle(.secondary)
                     Text(Date().addingTimeInterval(-stats.uptime).formatted(date: .abbreviated, time: .shortened))
                 }
             }
@@ -198,16 +199,16 @@ struct DiskDetails: View {
     var body: some View {
         let shown = Set(DiskFilter.visible(disks).map(\.mount))
         VStack(alignment: .leading, spacing: 8) {
-            DetailTitle("File Systems")
+            DetailTitle(L("File Systems"))
             ScrollView {
                 Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 4) {
                     GridRow {
-                        Text("Mounted on").fixedSize().gridColumnAlignment(.leading)
-                        Text("Device").gridColumnAlignment(.leading)
-                        Text("Size").fixedSize()
-                        Text("Used").fixedSize()
-                        Text("Free").fixedSize()
-                        Text("Use").fixedSize()
+                        Text(L("Mounted on")).fixedSize().gridColumnAlignment(.leading)
+                        Text(L("Device")).gridColumnAlignment(.leading)
+                        Text(L("Size")).fixedSize()
+                        Text(L("Used")).fixedSize()
+                        Text(L("Free")).fixedSize()
+                        Text(L("Use")).fixedSize()
                         Color.clear.frame(width: 60, height: 1)
                     }
                     .foregroundStyle(.secondary)
@@ -230,7 +231,7 @@ struct DiskDetails: View {
                 .frame(width: 600)
             }
             .frame(height: min(320, CGFloat(disks.count + 1) * 20))
-            Text("The status bar lists partitions on real devices and a separate /tmp. Temporary, container and system file systems (dimmed) appear only here.")
+            Text(L("The status bar lists partitions on real devices and a separate /tmp. Temporary, container and system file systems (dimmed) appear only here."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 600, alignment: .leading)

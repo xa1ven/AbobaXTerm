@@ -1,5 +1,6 @@
 import AXAskpassProtocol
 import AXModels
+import AXL10n
 import Foundation
 
 /// Everything needed to start ssh in a PTY.
@@ -60,7 +61,7 @@ public struct SSHLauncher: Sendable {
                 guard let x11 else { throw X11Unavailable() }
                 extra["DISPLAY"] = try await x11.prepareDisplay()
             } catch {
-                notices.append("X11: \(error.localizedDescription) Windows from the server will not open.")
+                notices.append("X11: \(error.localizedDescription) " + L("Windows from the server will not open."))
             }
         }
 
@@ -79,7 +80,7 @@ public struct SSHLauncher: Sendable {
     }
 
     private struct X11Unavailable: LocalizedError {
-        var errorDescription: String? { "No X server is available." }
+        var errorDescription: String? { L("No X server is available.") }
     }
 
     func environment(token: String?, extra: [String: String] = [:]) -> [String] {

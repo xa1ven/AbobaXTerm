@@ -1,0 +1,1 @@
+/* Present so macOS offers its own English strings (standard menus, file dialogs) to the app. Interface text lives in AXL10n. */

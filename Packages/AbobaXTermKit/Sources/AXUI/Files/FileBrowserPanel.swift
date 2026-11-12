@@ -1,3 +1,4 @@
+import AXL10n
 import AXSFTP
 import AXTerminal
 import SwiftUI
@@ -25,21 +26,21 @@ struct FileBrowserPanel: View {
             FileNameField(browser: browser, request: request)
         }
         .alert(deleteTitle, isPresented: isPresented(\.deleteRequest), presenting: browser.deleteRequest) { request in
-            Button("Delete", role: .destructive) { browser.performDelete(request) }
-            Button("Cancel", role: .cancel) {}
+            Button(L("Delete"), role: .destructive) { browser.performDelete(request) }
+            Button(L("Cancel"), role: .cancel) {}
         } message: { request in
             Text(request.items.contains(where: \.isDirectory)
-                 ? "Folders are deleted with everything inside. This can’t be undone."
-                 : "This can’t be undone.")
+                 ? L("Folders are deleted with everything inside. This can’t be undone.")
+                 : L("This can’t be undone."))
         }
         .alert(overwriteTitle, isPresented: isPresented(\.overwriteRequest), presenting: browser.overwriteRequest) { request in
-            Button("Replace", role: .destructive) { request.perform() }
-            Button("Cancel", role: .cancel) {}
+            Button(L("Replace"), role: .destructive) { request.perform() }
+            Button(L("Cancel"), role: .cancel) {}
         } message: { _ in
-            Text("Files with the same name on the server will be overwritten.")
+            Text(L("Files with the same name on the server will be overwritten."))
         }
-        .alert("File Operation Failed", isPresented: isPresented(\.errorText), presenting: browser.errorText) { _ in
-            Button("OK") {}
+        .alert(L("File Operation Failed"), isPresented: isPresented(\.errorText), presenting: browser.errorText) { _ in
+            Button(L("OK")) {}
         } message: { text in
             Text(text)
         }
@@ -55,9 +56,9 @@ struct FileBrowserPanel: View {
                     }
                 }
         case .waiting:
-            placeholder(icon: nil, text: tab.state.isActive ? "Waiting for the SSH connection…" : "Not connected")
+            placeholder(icon: nil, text: tab.state.isActive ? L("Waiting for the SSH connection…") : L("Not connected"))
         case .connecting:
-            placeholder(icon: nil, text: "Opening SFTP…")
+            placeholder(icon: nil, text: L("Opening SFTP…"))
         case .failed(let message):
             VStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle")
@@ -69,7 +70,7 @@ struct FileBrowserPanel: View {
                     .multilineTextAlignment(.center)
                     .textSelection(.enabled)
                 if tab.state.isActive {
-                    Button("Retry") { browser.connect() }
+                    Button(L("Retry")) { browser.connect() }
                 }
             }
             .padding()
@@ -93,12 +94,12 @@ struct FileBrowserPanel: View {
 
     private var deleteTitle: String {
         guard let items = browser.deleteRequest?.items else { return "" }
-        return items.count == 1 ? "Delete “\(items[0].name)”?" : "Delete \(items.count) items?"
+        return items.count == 1 ? L("Delete “%@”?", items[0].name) : L("Delete %@ items?", items.count)
     }
 
     private var overwriteTitle: String {
         guard let names = browser.overwriteRequest?.names else { return "" }
-        return names.count == 1 ? "Replace “\(names[0])”?" : "Replace \(names.count) items?"
+        return names.count == 1 ? L("Replace “%@”?", names[0]) : L("Replace %@ items?", names.count)
     }
 }
 
@@ -110,26 +111,26 @@ private struct FilePathBar: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            barButton("house", help: "Home Folder") { browser.goHome() }
+            barButton("house", help: L("Home Folder")) { browser.goHome() }
                 .disabled(!ready)
-            TextField("Path", text: $text)
+            TextField(L("Path"), text: $text)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
                 .controlSize(.small)
                 .onSubmit { browser.open(text) }
                 .disabled(!ready)
                 .padding(.horizontal, 4)
-            barButton("magnifyingglass", help: "Find in This Folder") { browser.toggleSearch() }
+            barButton("magnifyingglass", help: L("Find in This Folder")) { browser.toggleSearch() }
                 .disabled(!ready)
                 .foregroundStyle(browser.isSearchVisible ? Color.accentColor : Color.primary)
-            barButton("arrow.clockwise", help: "Refresh") { browser.refresh() }
+            barButton("arrow.clockwise", help: L("Refresh")) { browser.refresh() }
                 .disabled(!ready)
             Menu {
-                Toggle("Show Hidden Files", isOn: $browser.showHidden)
-                Button("Copy Current Path") { browser.copyCurrentPath() }
+                Toggle(L("Show Hidden Files"), isOn: $browser.showHidden)
+                Button(L("Copy Current Path")) { browser.copyCurrentPath() }
                 Divider()
-                Button("New Folder…") { browser.requestNewFolder(in: nil) }
-                Button("New File…") { browser.requestNewFile(in: nil) }
+                Button(L("New Folder…")) { browser.requestNewFolder(in: nil) }
+                Button(L("New File…")) { browser.requestNewFile(in: nil) }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -138,7 +139,7 @@ private struct FilePathBar: View {
             .menuIndicator(.hidden)
             .frame(width: 26, height: 24)
             .disabled(!ready)
-            .help("More")
+            .help(L("More"))
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
@@ -166,7 +167,7 @@ private struct FileSearchBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 2) {
-                TextField("Find in “\(SFTPClient.name(of: browser.currentPath))” — e.g. nginx or *.log",
+                TextField(L("Find in “%@” — e.g. nginx or *.log", SFTPClient.name(of: browser.currentPath)),
                           text: $browser.searchText)
                     .textFieldStyle(.roundedBorder)
                     .controlSize(.small)
@@ -185,9 +186,9 @@ private struct FileSearchBar: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .fixedSize()
-                arrow("chevron.up", help: "Previous Match (⇧↩)") { browser.showSearchResult(offset: -1) }
-                arrow("chevron.down", help: "Next Match (↩)") { browser.showSearchResult(offset: 1) }
-                arrow("xmark", help: "Close Search (Esc)") { browser.closeSearch() }
+                arrow("chevron.up", help: L("Previous Match (⇧↩)")) { browser.showSearchResult(offset: -1) }
+                arrow("chevron.down", help: L("Next Match (↩)")) { browser.showSearchResult(offset: 1) }
+                arrow("xmark", help: L("Close Search (Esc)")) { browser.closeSearch() }
             }
             if let message = browser.searchMessage {
                 Text(message)
@@ -232,13 +233,13 @@ private struct FileNameField: View {
     }
 
     var body: some View {
-        TextField("Name", text: $name)
-        Button("OK") {
+        TextField(L("Name"), text: $name)
+        Button(L("OK")) {
             var updated = request
             updated.name = name
             browser.commitName(updated)
         }
-        Button("Cancel", role: .cancel) {}
+        Button(L("Cancel"), role: .cancel) {}
     }
 }
 
@@ -249,12 +250,12 @@ struct TransferListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Transfers")
+                Text(L("Transfers"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 if queue.items.contains(where: { !$0.state.isActive }) {
-                    Button("Clear") { queue.clearFinished() }
+                    Button(L("Clear")) { queue.clearFinished() }
                         .buttonStyle(.borderless)
                         .font(.caption)
                 }
@@ -297,7 +298,7 @@ private struct TransferRow: View {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.borderless)
-                    .help("Cancel")
+                    .help(L("Cancel"))
                 } else {
                     Button {
                         queue.remove(item)
@@ -305,7 +306,7 @@ private struct TransferRow: View {
                         Image(systemName: "xmark").foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.borderless)
-                    .help("Remove from List")
+                    .help(L("Remove from List"))
                 }
             }
             .font(.callout)
@@ -339,12 +340,12 @@ private struct TransferRow: View {
     private var detail: String {
         let done = ByteCountFormatter.string(fromByteCount: Int64(item.doneBytes), countStyle: .file)
         switch item.state {
-        case .queued: return "Waiting…"
+        case .queued: return L("Waiting…")
         case .running:
-            guard let total = item.totalBytes else { return "Preparing… \(done)" }
-            return "\(done) of \(ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file))"
-        case .finished: return "Done — \(done)"
-        case .cancelled: return "Cancelled"
+            guard let total = item.totalBytes else { return L("Preparing… %@", done) }
+            return L("%1$@ of %2$@", done, ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file))
+        case .finished: return L("Done — %@", done)
+        case .cancelled: return L("Cancelled")
         case .failed(let message): return message
         }
     }

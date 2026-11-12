@@ -1,4 +1,5 @@
 import Darwin
+import AXL10n
 import Foundation
 import Synchronization
 
@@ -186,7 +187,7 @@ final class SFTPConnection: @unchecked Sendable {
         // Give stderr a moment to arrive so the error message is useful.
         usleep(50_000)
         let tail = state.withLock { $0.stderrTail }.trimmingCharacters(in: .whitespacesAndNewlines)
-        fail(SFTPError(status: .connectionLost, message: tail.isEmpty ? "Connection closed" : tail))
+        fail(SFTPError(status: .connectionLost, message: tail.isEmpty ? L("Connection closed") : tail))
     }
 
     private func dispatch(_ packet: Data) {

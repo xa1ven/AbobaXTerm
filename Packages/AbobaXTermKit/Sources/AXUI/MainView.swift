@@ -1,3 +1,4 @@
+import AXL10n
 import AXModels
 import AXSSH
 import SwiftUI
@@ -34,12 +35,12 @@ public struct MainView: View {
             isPresented: Binding(get: { model.deletionRequest != nil }, set: { if !$0 { model.deletionRequest = nil } }),
             presenting: model.deletionRequest
         ) { request in
-            Button("Delete", role: .destructive) { model.performDeletion(request) }
-            Button("Cancel", role: .cancel) {}
+            Button(L("Delete"), role: .destructive) { model.performDeletion(request) }
+            Button(L("Cancel"), role: .cancel) {}
         } message: { request in
             switch request.target {
-            case .session: Text("The saved password for this session will also be removed from the Keychain.")
-            case .folder: Text("Sessions and subfolders inside it are moved up one level, not deleted.")
+            case .session: Text(L("The saved password for this session will also be removed from the Keychain."))
+            case .folder: Text(L("Sessions and subfolders inside it are moved up one level, not deleted."))
             }
         }
         .alert(
@@ -50,21 +51,21 @@ public struct MainView: View {
             FolderNameField(request: request)
         }
         .alert(
-            "X11 Is Not Available",
+            L("X11 Is Not Available"),
             isPresented: Binding(get: { model.x11MissingRequest != nil }, set: { if !$0 { model.x11MissingRequest = nil } }),
             presenting: model.x11MissingRequest
         ) { session in
-            Button("Connect Without X11") { model.connectWithoutX11(session) }
-            Button("Cancel", role: .cancel) {}
+            Button(L("Connect Without X11")) { model.connectWithoutX11(session) }
+            Button(L("Cancel"), role: .cancel) {}
         } message: { _ in
-            Text("“\(model.x11MissingRequest?.displayName ?? "")” uses X11 forwarding, but the built-in X server is missing from this copy of AbobaXTerm. Rebuild the app to restore it.")
+            Text(L("“%@” uses X11 forwarding, but the built-in X server is missing from this copy of AbobaXTerm. Rebuild the app to restore it.", model.x11MissingRequest?.displayName ?? ""))
         }
         .alert(
             model.errorMessage?.title ?? "",
             isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } }),
             presenting: model.errorMessage
         ) { _ in
-            Button("OK") {}
+            Button(L("OK")) {}
         } message: { error in
             Text(error.message)
         }
@@ -73,14 +74,14 @@ public struct MainView: View {
     private var deletionTitle: String {
         guard let request = model.deletionRequest else { return "" }
         switch request.target {
-        case .session: return "Delete session “\(request.name)”?"
-        case .folder: return "Delete folder “\(request.name)”?"
+        case .session: return L("Delete session “%@”?", request.name)
+        case .folder: return L("Delete folder “%@”?", request.name)
         }
     }
 
     private var folderAlertTitle: String {
-        if case .rename = model.folderNameRequest?.mode { return "Rename Folder" }
-        return "New Folder"
+        if case .rename = model.folderNameRequest?.mode { return L("Rename Folder") }
+        return L("New Folder")
     }
 }
 
@@ -96,13 +97,13 @@ private struct FolderNameField: View {
     }
 
     var body: some View {
-        TextField("Name", text: $name)
-        Button("OK") {
+        TextField(L("Name"), text: $name)
+        Button(L("OK")) {
             var updated = request
             updated.name = name
             model.commitFolderName(updated)
         }
-        Button("Cancel", role: .cancel) {}
+        Button(L("Cancel"), role: .cancel) {}
     }
 }
 
@@ -110,9 +111,9 @@ private struct MainToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             SettingsLink {
-                Label("Settings", systemImage: "gearshape")
+                Label(L("Settings"), systemImage: "gearshape")
             }
-            .help("Settings (⌘,)")
+            .help(L("Settings (⌘,)"))
         }
     }
 }

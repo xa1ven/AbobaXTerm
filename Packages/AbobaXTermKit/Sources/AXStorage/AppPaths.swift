@@ -15,7 +15,11 @@ public struct AppPaths: Sendable {
     }
 
     public static let standard: AppPaths = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        var base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        #if DEBUG
+        // ABX_SUPPORT_DIR: a throwaway data folder, so debug runs leave the real sessions alone.
+        if let custom = ProcessInfo.processInfo.environment["ABX_SUPPORT_DIR"] { base = URL(fileURLWithPath: custom, isDirectory: true) }
+        #endif
         return AppPaths(
             supportDirectory: base.appendingPathComponent("AbobaXTerm", isDirectory: true),
             runtimeDirectory: URL(fileURLWithPath: "/tmp/abx-\(getuid())", isDirectory: true)

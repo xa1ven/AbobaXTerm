@@ -1,3 +1,4 @@
+import AXL10n
 import Foundation
 
 /// A directory entry.
@@ -171,7 +172,7 @@ public final class SFTPClient: Sendable {
         defer { Task { [connection] in _ = try? await Self.closeHandle(handle, connection) } }
         let attrs = try await fstat(handle, path: path)
         if let size = attrs.size, size > limit {
-            throw SFTPError(status: .failure, message: "File is too large (\(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)))", path: path)
+            throw SFTPError(status: .failure, message: L("File is too large (%@)", ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)), path: path)
         }
         var data = Data()
         try await readPipelined(handle: handle, size: attrs.size ?? 0, path: path) { _, chunk in

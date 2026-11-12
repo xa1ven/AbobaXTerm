@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXEditor
 import AXSFTP
@@ -85,21 +86,21 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
         editor.onCaretChange = { [weak self] line, column in self?.statusBar.setCaret(line: line, column: column) }
         statusBar.onLanguageChange = { [weak self] language in self?.editor.language = language }
         statusBar.onWrapChange = { [weak self] wraps in self?.editor.wrapsLines = wraps }
-        statusBar.setMessage("Loading…")
+        statusBar.setMessage(L("Loading…"))
     }
 
     // MARK: Loading
 
     private func load() {
         guard let client = browser?.client else {
-            fail("Not connected.")
+            fail(L("Not connected."))
             return
         }
         Task {
             do {
                 let (data, attrs) = try await client.readFile(path)
                 guard let text = Self.decode(data) else {
-                    fail("This looks like a binary file. Download it instead.")
+                    fail(L("This looks like a binary file. Download it instead."))
                     return
                 }
                 baseline = attrs
@@ -130,7 +131,7 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
         statusBar.setMessage(message)
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Can’t open “\(SFTPClient.name(of: path))”"
+        alert.messageText = L("Can’t open “%@”", SFTPClient.name(of: path))
         alert.informativeText = message
         alert.beginSheetModal(for: window) { [weak self] _ in
             MainActor.assumeIsolated { if self?.baseline == nil { self?.close() } }
@@ -146,11 +147,11 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
     private func save(force: Bool, then: (() -> Void)? = nil) {
         guard !isSaving, baseline != nil, let window else { return }
         guard let client = browser?.client, !client.isClosed else {
-            showError("Not connected. Reconnect the session and save again.")
+            showError(L("Not connected. Reconnect the session and save again."))
             return
         }
         isSaving = true
-        statusBar.setMessage("Saving…")
+        statusBar.setMessage(L("Saving…"))
         let text = editor.string
         Task {
             defer { isSaving = false }
@@ -165,11 +166,11 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
                 ignoredServerChange = nil
                 // Only clear the flag if nothing was typed while saving.
                 if editor.string == text { isDirty = false }
-                statusBar.setMessage("Saved \(Date().formatted(date: .omitted, time: .standard))")
+                statusBar.setMessage(L("Saved %@", Date().formatted(date: .omitted, time: .standard)))
                 browser?.refresh()
                 then?()
             } catch {
-                statusBar.setMessage("Save failed")
+                statusBar.setMessage(L("Save failed"))
                 showError(error.localizedDescription)
             }
         }
@@ -183,18 +184,18 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
     private func askOverwrite(window: NSWindow, then: (() -> Void)?) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "“\(SFTPClient.name(of: path))” was changed on the server"
-        alert.informativeText = "Someone or something modified the file after you opened it. Overwrite their changes with yours?"
-        alert.addButton(withTitle: "Overwrite")
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Discard Mine and Reload")
+        alert.messageText = L("“%@” was changed on the server", SFTPClient.name(of: path))
+        alert.informativeText = L("Someone or something modified the file after you opened it. Overwrite their changes with yours?")
+        alert.addButton(withTitle: L("Overwrite"))
+        alert.addButton(withTitle: L("Cancel"))
+        alert.addButton(withTitle: L("Discard Mine and Reload"))
         alert.buttons[2].hasDestructiveAction = true
         alert.beginSheetModal(for: window) { [weak self] response in
             MainActor.assumeIsolated {
                 switch response {
                 case .alertFirstButtonReturn: self?.save(force: true, then: then)
                 case .alertThirdButtonReturn: self?.load()
-                default: self?.statusBar.setMessage("Not saved")
+                default: self?.statusBar.setMessage(L("Not saved"))
                 }
             }
         }
@@ -203,7 +204,7 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
     private func showError(_ message: String) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Couldn’t save “\(SFTPClient.name(of: path))”"
+        alert.messageText = L("Couldn’t save “%@”", SFTPClient.name(of: path))
         alert.informativeText = message
         alert.beginSheetModal(for: window)
     }
@@ -228,12 +229,12 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
             guard self.changed(current), current != self.ignoredServerChange, window.attachedSheet == nil else { return }
             self.ignoredServerChange = current
             let alert = NSAlert()
-            alert.messageText = "“\(SFTPClient.name(of: path))” changed on the server"
+            alert.messageText = L("“%@” changed on the server", SFTPClient.name(of: path))
             alert.informativeText = self.isDirty
-                ? "You have unsaved changes. Reloading will discard them."
-                : "Reload to see the current version?"
-            alert.addButton(withTitle: "Reload")
-            alert.addButton(withTitle: "Keep My Version")
+                ? L("You have unsaved changes. Reloading will discard them.")
+                : L("Reload to see the current version?")
+            alert.addButton(withTitle: L("Reload"))
+            alert.addButton(withTitle: L("Keep My Version"))
             alert.beginSheetModal(for: window) { [weak self] response in
                 MainActor.assumeIsolated {
                     if response == .alertFirstButtonReturn { self?.load() }
@@ -247,11 +248,11 @@ final class RemoteEditorWindowController: NSWindowController, NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard isDirty else { return true }
         let alert = NSAlert()
-        alert.messageText = "Save changes to “\(SFTPClient.name(of: path))” on the server?"
-        alert.informativeText = "Your changes will be lost if you don’t save them."
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Don’t Save")
+        alert.messageText = L("Save changes to “%@” on the server?", SFTPClient.name(of: path))
+        alert.informativeText = L("Your changes will be lost if you don’t save them.")
+        alert.addButton(withTitle: L("Save"))
+        alert.addButton(withTitle: L("Cancel"))
+        alert.addButton(withTitle: L("Don’t Save"))
         alert.buttons[2].hasDestructiveAction = true
         alert.beginSheetModal(for: sender) { [weak self] response in
             MainActor.assumeIsolated {
@@ -280,8 +281,8 @@ final class EditorStatusBar: NSView {
     var onLanguageChange: ((SyntaxLanguage) -> Void)?
     var onWrapChange: ((Bool) -> Void)?
     private let message = NSTextField(labelWithString: "")
-    private let caret = NSTextField(labelWithString: "Ln 1, Col 1")
-    private let wrap = NSButton(checkboxWithTitle: "Wrap", target: nil, action: nil)
+    private let caret = NSTextField(labelWithString: L("Ln 1, Col 1"))
+    private let wrap = NSButton(checkboxWithTitle: L("Wrap"), target: nil, action: nil)
     private let language = NSPopUpButton(frame: .zero, pullsDown: false)
 
     init() {
@@ -332,7 +333,7 @@ final class EditorStatusBar: NSView {
 
     func setMessage(_ text: String) { message.stringValue = text }
 
-    func setCaret(line: Int, column: Int) { caret.stringValue = "Ln \(line), Col \(column)" }
+    func setCaret(line: Int, column: Int) { caret.stringValue = L("Ln %@, Col %@", line, column) }
 
     func setLanguage(_ lang: SyntaxLanguage) {
         if let index = SyntaxLanguage.allCases.firstIndex(of: lang) { language.selectItem(at: index) }

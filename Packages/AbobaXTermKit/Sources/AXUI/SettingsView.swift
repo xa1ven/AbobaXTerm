@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXSSH
 import SwiftUI
@@ -12,43 +13,49 @@ public struct SettingsView: View {
         @Bindable var model = model
 
         Form {
-            Section("Appearance") {
-                Picker("Theme", selection: $model.appearance) {
+            Section(L("Appearance")) {
+                Picker(L("Theme"), selection: $model.appearance) {
                     ForEach(AppearanceMode.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                Picker(selection: Binding(get: { L10n.shared.language }, set: { L10n.shared.language = $0 })) {
+                    ForEach(AppLanguage.allCases) { Text($0.nativeName).tag($0) }
+                } label: {
+                    Text(L("Language"))
+                    Text(L("The standard menus and file dialogs of macOS switch after AbobaXTerm is restarted."))
+                }
             }
 
-            Section("Terminal") {
-                LabeledContent("Font size") {
+            Section(L("Terminal")) {
+                LabeledContent(L("Font size")) {
                     HStack {
-                        Text("\(Int(model.fontSize)) pt")
+                        Text(L("%@ pt", Int(model.fontSize)))
                             .monospacedDigit()
                         Stepper("", onIncrement: { model.adjustFontSize(by: 1) },
                                 onDecrement: { model.adjustFontSize(by: -1) })
                             .labelsHidden()
                     }
                 }
-                Toggle("Highlight output (IPs, URLs, errors…)", isOn: $model.highlightOutput)
-                LabeledContent("Local shell", value: model.localShellPath)
+                Toggle(L("Highlight output (IPs, URLs, errors…)"), isOn: $model.highlightOutput)
+                LabeledContent(L("Local shell"), value: model.localShellPath)
             }
 
-            Section("SSH") {
-                Picker("Keep connection after last tab closes", selection: $model.controlPersistMinutes) {
+            Section(L("SSH")) {
+                Picker(L("Keep connection after last tab closes"), selection: $model.controlPersistMinutes) {
                     ForEach(AppModel.controlPersistChoices, id: \.self) { minutes in
-                        Text(minutes == 1 ? "1 minute" : "\(minutes) minutes").tag(minutes)
+                        Text(LN(minutes, "%@ minute", "%@ minutes")).tag(minutes)
                     }
                 }
             }
 
-            Section("Server Monitoring") {
+            Section(L("Server Monitoring")) {
                 Toggle(isOn: $model.monitorEnabled) {
-                    Text("Status bar under SSH terminals")
-                    Text("CPU, memory, network, uptime and disks of Linux servers, read over the connection that is already open. Nothing is installed on the server.")
+                    Text(L("Status bar under SSH terminals"))
+                    Text(L("CPU, memory, network, uptime and disks of Linux servers, read over the connection that is already open. Nothing is installed on the server."))
                 }
-                Picker("Update every", selection: $model.monitorInterval) {
+                Picker(L("Update every"), selection: $model.monitorInterval) {
                     ForEach(AppModel.monitorIntervalChoices, id: \.self) { seconds in
-                        Text(seconds == 1 ? "1 second" : "\(seconds) seconds").tag(seconds)
+                        Text(LN(seconds, "%@ second", "%@ seconds")).tag(seconds)
                     }
                 }
                 .disabled(!model.monitorEnabled)
@@ -58,17 +65,28 @@ public struct SettingsView: View {
                 X11StatusRow()
             }
 
-            Section("Data") {
-                LabeledContent("Sessions") {
-                    Button("Show in Finder") {
+            Section {
+                LabeledContent(L("Sessions")) {
+                    Button(L("Show in Finder")) {
                         NSWorkspace.shared.activateFileViewerSelecting([model.paths.sessionsFile])
                     }
                 }
+            } header: {
+                Text(L("Data"))
+            } footer: {
+                VStack(spacing: 2) {
+                    Text(L("Version %@", Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"))
+                    Text(verbatim: "Prod by xa1ven | Mike Dubenskov")
+                }
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 12)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
+        // Fixed height: the grouped form scrolls inside the window.
+        .frame(width: 480, height: 600)
     }
 }
 
@@ -83,20 +101,20 @@ private struct X11StatusRow: View {
     @State private var isHealthy = true
 
     var body: some View {
-        LabeledContent("Built-in X server") {
+        LabeledContent(L("Built-in X server")) {
             Label(status, systemImage: isHealthy ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(isHealthy ? .green : .orange)
         }
         .onAppear(perform: refresh)
         Toggle(isOn: Binding(get: { model.x11HiDPI }, set: { model.x11HiDPI = $0 })) {
-            Text("Sharp rendering on Retina displays")
-            Text("Programs draw at double resolution. Turn off if an old program that cannot scale looks too small. Applies once all X11 windows are closed.")
+            Text(L("Sharp rendering on Retina displays"))
+            Text(L("Programs draw at double resolution. Turn off if an old program that cannot scale looks too small. Applies once all X11 windows are closed."))
         }
         Toggle(isOn: Binding(get: { model.x11CommandShortcuts }, set: { model.x11CommandShortcuts = $0 })) {
-            Text("⌘C, ⌘V, ⌘X, ⌘A and ⌘Z in X11 windows")
-            Text("Copy, paste, cut, select all and undo, sent the way each program expects. Turn off to pass Command through as the Super (Windows) key, for example to a virtual machine’s console.")
+            Text(L("⌘C, ⌘V, ⌘X, ⌘A and ⌘Z in X11 windows"))
+            Text(L("Copy, paste, cut, select all and undo, sent the way each program expects. Turn off to pass Command through as the Super (Windows) key, for example to a virtual machine’s console."))
         }
-        Text("Sessions with “X11 forwarding” show programs from the server as windows on this Mac. Nothing else needs to be installed.")
+        Text(L("Sessions with “X11 forwarding” show programs from the server as windows on this Mac. Nothing else needs to be installed."))
             .font(.callout)
             .foregroundStyle(.secondary)
     }
@@ -106,17 +124,17 @@ private struct X11StatusRow: View {
         isHealthy = x11.isAvailable
         switch x11.state {
         case _ where !x11.isAvailable:
-            status = "Missing from the app"
+            status = L("Missing from the app")
         case .running(let display):
             let count = x11.windowCount
-            status = "Running on \(display)" + (count > 0 ? ", \(count) window\(count == 1 ? "" : "s")" : "")
+            status = L("Running on %@", display) + (count > 0 ? ", " + LN(count, "%@ window", "%@ windows") : "")
         case .starting:
-            status = "Starting…"
+            status = L("Starting…")
         case .failed(let reason):
             status = reason
             isHealthy = false
         case .stopped:
-            status = "Starts with the first X11 session"
+            status = L("Starts with the first X11 session")
         }
     }
 }

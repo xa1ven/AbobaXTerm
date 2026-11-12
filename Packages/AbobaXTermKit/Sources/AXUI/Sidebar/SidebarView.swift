@@ -1,7 +1,9 @@
+import AXL10n
 import AXModels
 import SwiftUI
 
-/// Tree node for the sessions outline.
+/// One visible row of the sessions tree, with what is needed to draw the
+/// connecting lines to its parent folder.
 struct SidebarNode: Identifiable, Hashable {
     enum Kind: Hashable {
         case folder(Folder)
@@ -9,7 +11,13 @@ struct SidebarNode: Identifiable, Hashable {
     }
 
     let kind: Kind
-    var children: [SidebarNode]?
+    /// For every ancestor level: whether that ancestor has more siblings
+    /// below, i.e. its vertical line continues through this row.
+    let continues: [Bool]
+    /// Last child of its parent: the line stops at this row.
+    let isLast: Bool
+
+    var depth: Int { continues.count }
 
     var id: SidebarItem {
         switch kind {
@@ -18,10 +26,51 @@ struct SidebarNode: Identifiable, Hashable {
         }
     }
 
-    static func tree(_ library: SessionLibrary, parent: UUID? = nil) -> [SidebarNode] {
-        library.childFolders(of: parent).map { folder in
-            SidebarNode(kind: .folder(folder), children: tree(library, parent: folder.id))
-        } + library.sessions(in: parent).map { SidebarNode(kind: .session($0), children: nil) }
+    /// Flattens the library into rows; only expanded folders show their contents.
+    static func rows(_ library: SessionLibrary, expanded: Set<UUID>, parent: UUID? = nil, continues: [Bool] = []) -> [SidebarNode] {
+        let kinds = library.childFolders(of: parent).map(Kind.folder) + library.sessions(in: parent).map(Kind.session)
+        var result: [SidebarNode] = []
+        for (index, kind) in kinds.enumerated() {
+            let isLast = index == kinds.count - 1
+            result.append(SidebarNode(kind: kind, continues: continues, isLast: isLast))
+            if case .folder(let folder) = kind, expanded.contains(folder.id) {
+                // Top-level rows have no line of their own to continue.
+                result += rows(library, expanded: expanded, parent: folder.id, continues: continues + [!isLast])
+            }
+        }
+        return result
+    }
+}
+
+/// Explorer-style connecting lines in front of a nested row.
+private struct TreeGuides: View {
+    let node: SidebarNode
+    static let step: CGFloat = 16
+
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            let depth = node.depth
+            for level in 1..<max(depth, 1) where node.continues[level] {
+                let x = (CGFloat(level) - 0.5) * Self.step
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            if depth > 0 {
+                let x = (CGFloat(depth) - 0.5) * Self.step
+                let middle = (size.height / 2).rounded()
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: node.isLast ? middle : size.height))
+                path.move(to: CGPoint(x: x, y: middle))
+                path.addLine(to: CGPoint(x: size.width - 2, y: middle))
+            }
+            context.stroke(path, with: .color(.secondary.opacity(0.45)), lineWidth: 1)
+        }
+        .frame(width: CGFloat(node.depth) * Self.step)
+        // Rows are separated by a few points of padding; reach across it so
+        // the vertical lines of neighbouring rows join.
+        .padding(.vertical, -6)
+        .allowsHitTesting(false)
     }
 }
 
@@ -33,9 +82,9 @@ struct SidebarView: View {
         @Bindable var model = model
 
         VStack(spacing: 0) {
-            Picker("Sidebar", selection: $model.sidebarMode) {
-                Label("Sessions", systemImage: "server.rack").tag(SidebarMode.sessions)
-                Label("SFTP", systemImage: "folder").tag(SidebarMode.files)
+            Picker(L("Sidebar"), selection: $model.sidebarMode) {
+                Label(L("Sessions"), systemImage: "server.rack").tag(SidebarMode.sessions)
+                Label(L("SFTP"), systemImage: "folder").tag(SidebarMode.files)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -51,15 +100,15 @@ struct SidebarView: View {
                         .id(tab.id)
                 } else {
                     ContentUnavailableView {
-                        Label("No SFTP Session", systemImage: "folder")
+                        Label(L("No SFTP Session"), systemImage: "folder")
                     } description: {
-                        Text("Open an SSH session to browse its files here.")
+                        Text(L("Open an SSH session to browse its files here."))
                     }
                     .frame(maxHeight: .infinity)
                 }
             }
         }
-        .searchable(text: $model.searchText, placement: .sidebar, prompt: "Search sessions")
+        .searchable(text: $model.searchText, placement: .sidebar, prompt: L("Search sessions"))
         .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 600)
     }
 }
@@ -76,28 +125,33 @@ private struct SessionsListView: View {
         List(selection: $model.sidebarSelection) {
             if isSearching {
                 let results = library.search(model.searchText)
-                Section("Results (\(results.count))") {
+                Section(L("Results (%@)", results.count)) {
                     ForEach(results) { session in
-                        SessionRow(session: session, folderPath: library.path(of: session.folderID))
+                        sessionRow(session, item: .session(session.id), folderPath: library.path(of: session.folderID))
                             .tag(SidebarItem.session(session.id))
                     }
                 }
             } else {
                 let favorites = library.favorites
                 if !favorites.isEmpty {
-                    Section("Favorites") {
+                    Section(L("Favorites")) {
                         ForEach(favorites) { session in
-                            SessionRow(session: session)
+                            sessionRow(session, item: .favorite(session.id))
                                 .tag(SidebarItem.favorite(session.id))
                         }
                     }
                 }
                 Section {
-                    OutlineGroup(SidebarNode.tree(library), children: \.children) { node in
-                        row(for: node)
+                    ForEach(SidebarNode.rows(library, expanded: model.expandedFolders)) { node in
+                        HStack(spacing: 0) {
+                            TreeGuides(node: node)
+                            row(for: node)
+                        }
+                        .background { selectionMark(node.id) }
+                        .tag(node.id)
                     }
                 } header: {
-                    Text("Sessions")
+                    Text(L("Sessions"))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         .dropDestination(for: String.self) { items, _ in
@@ -107,24 +161,24 @@ private struct SessionsListView: View {
             }
         }
         .listStyle(.sidebar)
-        .background(EmptyAreaClickMonitor { model.focusTerminal() })
+        .onKeyPress(.rightArrow) { setSelectedFolder(collapsed: false) }
+        .onKeyPress(.leftArrow) { setSelectedFolder(collapsed: true) }
+        .background(SidebarTableBridge(onEmptyAreaClick: { model.focusTerminal() }, onFocusChange: { focused in
+            // The selection belongs to the focused sidebar only.
+            if !focused { model.sidebarSelection = nil }
+        }))
+        // Double-click is handled by the rows themselves (see `click`).
         .contextMenu(forSelectionType: SidebarItem.self) { items in
             SidebarContextMenu(item: items.first)
-        } primaryAction: { items in
-            guard let item = items.first else { return }
-            switch item {
-            case .session(let id), .favorite(let id): model.connect(sessionID: id)
-            case .folder(let id): model.requestRenameFolder(id)
-            }
         }
         .overlay {
             if library.sessions.isEmpty && library.folders.isEmpty {
                 ContentUnavailableView {
-                    Label("No Sessions", systemImage: "server.rack")
+                    Label(L("No Sessions"), systemImage: "server.rack")
                 } description: {
-                    Text("Create a session to connect over SSH.")
+                    Text(L("Create a session to connect over SSH."))
                 } actions: {
-                    Button("New Session") { model.newSession() }
+                    Button(L("New Session")) { model.newSession() }
                 }
             }
         }
@@ -137,17 +191,14 @@ private struct SessionsListView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack(spacing: 4) {
-                SidebarBarButton(symbol: "plus", help: "New Session (⌘N)") {
+                SidebarBarButton(symbol: "plus", help: L("New Session (⌘N)")) {
                     model.newSession(in: model.selectedFolderForNewItems)
                 }
-                SidebarBarButton(symbol: "folder.badge.plus", help: "New Folder (⇧⌘N)") {
+                SidebarBarButton(symbol: "folder.badge.plus", help: L("New Folder (⇧⌘N)")) {
                     model.requestNewFolder(parent: model.selectedFolderForNewItems)
                 }
-                SidebarBarButton(symbol: "apple.terminal", help: "New Local Terminal (⌘T)") {
-                    model.openLocalTerminal()
-                }
                 Spacer()
-                Text(library.sessions.count == 1 ? "1 session" : "\(library.sessions.count) sessions")
+                Text(LN(library.sessions.count, "%@ session", "%@ sessions"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.trailing, 6)
@@ -161,18 +212,89 @@ private struct SessionsListView: View {
     private func row(for node: SidebarNode) -> some View {
         switch node.kind {
         case .folder(let folder):
-            Label {
-                Text(folder.name)
-            } icon: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .rotationEffect(.degrees(model.expandedFolders.contains(folder.id) ? 90 : 0))
+                    .frame(width: 16, height: 22)
+                    .foregroundStyle(.secondary)
                 Image(systemName: "folder")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                Text(folder.name)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+            // A click anywhere on the row opens or closes the folder. The tap
+            // takes the click from the list, so select the row here as well.
+            .onTapGesture {
+                click(.folder(folder.id))
+                setCollapsed(model.expandedFolders.contains(folder.id), folder.id)
             }
             .draggable(SidebarItem.folder(folder.id).dragPayload)
             .dropDestination(for: String.self) { items, _ in
                 model.handleDrop(items, into: folder.id)
             }
         case .session(let session):
-            SessionRow(session: session)
+            sessionRow(session, item: .session(session.id))
         }
+    }
+
+    /// Session row that takes clicks over its whole width. Rows handle clicks
+    /// themselves: left to the list, a click on the draggable part of a row
+    /// was sometimes swallowed by the drag gesture.
+    private func sessionRow(_ session: Session, item: SidebarItem, folderPath: String = "") -> some View {
+        SessionRow(session: session, folderPath: folderPath)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { click(item) }
+            // After the tap gesture: a drag attached inside it kept clicks on
+            // the empty part of the row from reaching the tap.
+            .draggable(SidebarItem.session(session.id).dragPayload) {
+                Label(session.displayName, systemImage: session.iconName)
+                    .padding(6)
+            }
+            .background { if !isTreeItem(item) { selectionMark(item) } }
+    }
+
+    /// Tree rows draw the mark behind the guides as well, one level up.
+    private func isTreeItem(_ item: SidebarItem) -> Bool {
+        if case .session = item { return model.searchText.trimmingCharacters(in: .whitespaces).isEmpty }
+        return false
+    }
+
+    /// Selects the row; a double-click on a session connects to it.
+    private func click(_ item: SidebarItem) {
+        model.sidebarSelection = item
+        if NSApp.currentEvent?.clickCount == 2, let id = item.sessionID {
+            model.connect(sessionID: id)
+        }
+    }
+
+    /// Neutral gray selection mark, drawn by the app in place of the list's
+    /// own accent-colored highlight (which `SidebarTableBridge` turns off).
+    @ViewBuilder
+    private func selectionMark(_ item: SidebarItem) -> some View {
+        if model.sidebarSelection == item {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.12))
+                .padding(.horizontal, -6)
+                .padding(.vertical, -3)
+        }
+    }
+
+    private func setCollapsed(_ value: Bool, _ id: UUID) {
+        withAnimation(.snappy(duration: 0.18)) {
+            if value { model.expandedFolders.remove(id) } else { model.expandedFolders.insert(id) }
+        }
+    }
+
+    /// ← and → collapse and expand the selected folder, as in Finder.
+    private func setSelectedFolder(collapsed value: Bool) -> KeyPress.Result {
+        guard case .folder(let id) = model.sidebarSelection, model.expandedFolders.contains(id) == value else { return .ignored }
+        setCollapsed(value, id)
+        return .handled
     }
 }
 
@@ -232,14 +354,10 @@ struct SessionRow: View {
                     .fill(.green)
                     .frame(width: 7, height: 7)
                     .padding(.trailing, 8)
-                    .help("Connected")
+                    .help(L("Connected"))
             }
         }
         .padding(.vertical, 2)
-        .draggable(SidebarItem.session(session.id).dragPayload) {
-            Label(session.displayName, systemImage: session.iconName)
-                .padding(6)
-        }
     }
 }
 
@@ -251,13 +369,13 @@ struct SidebarContextMenu: View {
         switch item {
         case .session(let id), .favorite(let id):
             if let session = model.library.session(id: id) {
-                Button("Connect") { model.connect(sessionID: id) }
+                Button(L("Connect")) { model.connect(sessionID: id) }
                 Divider()
-                Button("Edit…") { model.editSession(id) }
-                Button("Duplicate") { model.duplicateSession(id) }
-                Button(session.isFavorite ? "Remove from Favorites" : "Add to Favorites") { model.toggleFavorite(id) }
-                Menu("Move to") {
-                    Button("Top Level") { model.move(sessionID: id, to: nil) }
+                Button(L("Edit…")) { model.editSession(id) }
+                Button(L("Duplicate")) { model.duplicateSession(id) }
+                Button(session.isFavorite ? L("Remove from Favorites") : L("Add to Favorites")) { model.toggleFavorite(id) }
+                Menu(L("Move to")) {
+                    Button(L("Top Level")) { model.move(sessionID: id, to: nil) }
                         .disabled(session.folderID == nil)
                     let folders = model.library.folders.sorted {
                         model.library.path(of: $0.id).localizedStandardCompare(model.library.path(of: $1.id)) == .orderedAscending
@@ -268,21 +386,21 @@ struct SidebarContextMenu: View {
                             .disabled(session.folderID == folder.id)
                     }
                 }
-                Button("Copy SSH Command") { model.copyCommandLine(id) }
+                Button(L("Copy SSH Command")) { model.copyCommandLine(id) }
                 Divider()
-                Button("Delete…", role: .destructive) { model.requestDeleteSession(id) }
+                Button(L("Delete…"), role: .destructive) { model.requestDeleteSession(id) }
             }
         case .folder(let id):
-            Button("New Session Here…") { model.newSession(in: id) }
-            Button("New Subfolder") { model.requestNewFolder(parent: id) }
+            Button(L("New Session Here…")) { model.newSession(in: id) }
+            Button(L("New Subfolder")) { model.requestNewFolder(parent: id) }
             Divider()
-            Button("Rename…") { model.requestRenameFolder(id) }
-            Button("Move to Top Level") { model.move(folderID: id, to: nil) }
+            Button(L("Rename…")) { model.requestRenameFolder(id) }
+            Button(L("Move to Top Level")) { model.move(folderID: id, to: nil) }
             Divider()
-            Button("Delete Folder…", role: .destructive) { model.requestDeleteFolder(id) }
+            Button(L("Delete Folder…"), role: .destructive) { model.requestDeleteFolder(id) }
         case nil:
-            Button("New Session…") { model.newSession() }
-            Button("New Folder") { model.requestNewFolder() }
+            Button(L("New Session…")) { model.newSession() }
+            Button(L("New Folder")) { model.requestNewFolder() }
         }
     }
 }

@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXModels
 import AXSSH
@@ -60,7 +61,7 @@ public final class TerminalTab: Identifiable {
     }
 
     public var title: String {
-        session?.displayName ?? "Local Terminal"
+        session?.displayName ?? L("Local Terminal")
     }
 
     public var subtitle: String {
@@ -104,7 +105,7 @@ public final class TerminalTab: Identifiable {
 
     private func startSSH(_ session: Session, isSaved: Bool) {
         state = .connecting
-        terminalView.feed(text: "\u{1B}[2mConnecting to \(session.target)…\u{1B}[0m\r\n")
+        terminalView.feed(text: "\u{1B}[2m" + L("Connecting to %@…", session.target) + "\u{1B}[0m\r\n")
 
         launchTask = Task { [weak self, launcher] in
             do {
@@ -169,10 +170,10 @@ extension TerminalTab: AXTerminalViewDelegate {
         spec = nil
         guard state == .running else { return }
         state = .exited(code: exitCode)
-        let code = exitCode.map(String.init) ?? "signal"
-        let what = isLocal ? "Shell exited" : "Connection closed"
-        let action = isLocal ? "restart" : "reconnect"
-        terminalView.feed(text: "\r\n\u{1B}[2m[\(what), exit code \(code). Press ⌘R to \(action).]\u{1B}[0m\r\n")
+        let code = exitCode.map(String.init) ?? L("signal")
+        let text = isLocal ? L("Shell exited, exit code %@. Press ⌘R to restart.", code)
+                           : L("Connection closed, exit code %@. Press ⌘R to reconnect.", code)
+        terminalView.feed(text: "\r\n\u{1B}[2m[\(text)]\u{1B}[0m\r\n")
     }
 
     public func terminalProcessFailedToStart(_ message: String) {

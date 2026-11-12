@@ -1,3 +1,4 @@
+import AXL10n
 import Foundation
 
 /// POSIX-shell-like word splitting (quotes and backslashes, no expansion).
@@ -8,8 +9,8 @@ public enum ShellWords {
 
         public var errorDescription: String? {
             switch self {
-            case .unterminatedQuote(let q): "Unterminated \(q) quote"
-            case .trailingBackslash: "Trailing backslash"
+            case .unterminatedQuote(let q): L("Unterminated %@ quote", q)
+            case .trailingBackslash: L("Trailing backslash")
             }
         }
     }

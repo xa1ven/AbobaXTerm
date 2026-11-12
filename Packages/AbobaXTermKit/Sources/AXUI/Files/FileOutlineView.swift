@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXSFTP
 import SwiftUI
@@ -210,13 +211,13 @@ struct FileOutlineView: NSViewRepresentable {
         func menuNeedsUpdate(_ menu: NSMenu) {
             menu.removeAllItems()
             let targets = targetNodes()
-            let refresh = ClosureMenuItem("Refresh") { [model] in model.refresh() }
+            let refresh = ClosureMenuItem(L("Refresh")) { [model] in model.refresh() }
 
             guard !targets.isEmpty else {
                 let folder = model.currentPath
-                menu.addItem(ClosureMenuItem("Upload…") { [weak self] in self?.chooseUpload(to: folder) })
-                menu.addItem(ClosureMenuItem("New Folder…") { [model] in model.requestNewFolder(in: folder) })
-                menu.addItem(ClosureMenuItem("New File…") { [model] in model.requestNewFile(in: folder) })
+                menu.addItem(ClosureMenuItem(L("Upload…")) { [weak self] in self?.chooseUpload(to: folder) })
+                menu.addItem(ClosureMenuItem(L("New Folder…")) { [model] in model.requestNewFolder(in: folder) })
+                menu.addItem(ClosureMenuItem(L("New File…")) { [model] in model.requestNewFile(in: folder) })
                 menu.addItem(.separator())
                 menu.addItem(refresh)
                 return
@@ -224,8 +225,8 @@ struct FileOutlineView: NSViewRepresentable {
 
             let infos = targets.map(\.info)
             guard targets.count == 1, let node = targets.first else {
-                menu.addItem(ClosureMenuItem("Download \(targets.count) Items…") { [weak self] in self?.chooseDownloadFolder(for: infos) })
-                menu.addItem(ClosureMenuItem("Delete \(targets.count) Items…") { [model] in model.requestDelete(infos) })
+                menu.addItem(ClosureMenuItem(L("Download %@ Items…", targets.count)) { [weak self] in self?.chooseDownloadFolder(for: infos) })
+                menu.addItem(ClosureMenuItem(L("Delete %@ Items…", targets.count)) { [model] in model.requestDelete(infos) })
                 menu.addItem(.separator())
                 menu.addItem(refresh)
                 return
@@ -233,19 +234,19 @@ struct FileOutlineView: NSViewRepresentable {
 
             let info = node.info
             if node.isDirectory {
-                menu.addItem(ClosureMenuItem("Open") { [model] in model.open(info.path) })
+                menu.addItem(ClosureMenuItem(L("Open")) { [model] in model.open(info.path) })
                 menu.addItem(.separator())
-                menu.addItem(ClosureMenuItem("Upload Here…") { [weak self] in self?.chooseUpload(to: info.path) })
-                menu.addItem(ClosureMenuItem("New Folder Inside…") { [model] in model.requestNewFolder(in: info.path) })
-                menu.addItem(ClosureMenuItem("New File Inside…") { [model] in model.requestNewFile(in: info.path) })
+                menu.addItem(ClosureMenuItem(L("Upload Here…")) { [weak self] in self?.chooseUpload(to: info.path) })
+                menu.addItem(ClosureMenuItem(L("New Folder Inside…")) { [model] in model.requestNewFolder(in: info.path) })
+                menu.addItem(ClosureMenuItem(L("New File Inside…")) { [model] in model.requestNewFile(in: info.path) })
             } else {
-                menu.addItem(ClosureMenuItem("Open in Editor") { [model] in model.openInEditor(info) })
+                menu.addItem(ClosureMenuItem(L("Open in Editor")) { [model] in model.openInEditor(info) })
             }
             menu.addItem(.separator())
-            menu.addItem(ClosureMenuItem("Rename…") { [model] in model.requestRename(info) })
-            menu.addItem(ClosureMenuItem("Download…") { [weak self] in self?.chooseDownloadFolder(for: infos) })
-            menu.addItem(ClosureMenuItem("Delete…") { [model] in model.requestDelete(infos) })
-            menu.addItem(ClosureMenuItem("Copy Path") { [model] in model.copyPath(info) })
+            menu.addItem(ClosureMenuItem(L("Rename…")) { [model] in model.requestRename(info) })
+            menu.addItem(ClosureMenuItem(L("Download…")) { [weak self] in self?.chooseDownloadFolder(for: infos) })
+            menu.addItem(ClosureMenuItem(L("Delete…")) { [model] in model.requestDelete(infos) })
+            menu.addItem(ClosureMenuItem(L("Copy Path")) { [model] in model.copyPath(info) })
             menu.addItem(.separator())
             menu.addItem(refresh)
         }
@@ -307,8 +308,8 @@ struct FileOutlineView: NSViewRepresentable {
             panel.canChooseFiles = false
             panel.canChooseDirectories = true
             panel.canCreateDirectories = true
-            panel.prompt = "Download"
-            panel.message = "Choose a folder to download to"
+            panel.prompt = L("Download")
+            panel.message = L("Choose a folder to download to")
             panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
             guard let window = outline?.window else { return }
             panel.beginSheetModal(for: window) { [model] response in
@@ -322,8 +323,8 @@ struct FileOutlineView: NSViewRepresentable {
             panel.canChooseFiles = true
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = true
-            panel.prompt = "Upload"
-            panel.message = "Upload to \(directory)"
+            panel.prompt = L("Upload")
+            panel.message = L("Upload to %@", directory)
             guard let window = outline?.window else { return }
             panel.beginSheetModal(for: window) { [model] response in
                 guard response == .OK else { return }
@@ -450,13 +451,13 @@ final class FileCellView: NSTableCellView {
         icon.image = Self.icon(for: node)
         detailLabel.stringValue = node.isDirectory ? "" : ByteCountFormatter.string(fromByteCount: Int64(info.size), countStyle: .file)
         if node.isParentLink {
-            toolTip = "Parent folder"
+            toolTip = L("Parent folder")
         } else {
             var lines = [info.name]
-            if info.isSymlink { lines.append("Symbolic link") }
+            if info.isSymlink { lines.append(L("Symbolic link")) }
             if !node.isDirectory { lines.append(ByteCountFormatter.string(fromByteCount: Int64(info.size), countStyle: .file)) }
             if let date = info.attributes.modificationDate {
-                lines.append("Modified " + date.formatted(date: .abbreviated, time: .shortened))
+                lines.append(L("Modified %@", date.formatted(date: .abbreviated, time: .shortened)))
             }
             let perms = info.attributes.permissionString
             if !perms.isEmpty { lines.append(perms + (info.attributes.uid.map { "  uid \($0)" } ?? "")) }
@@ -466,7 +467,7 @@ final class FileCellView: NSTableCellView {
 
     private static func icon(for node: FileNode) -> NSImage {
         if node.isParentLink {
-            return NSImage(systemSymbolName: "arrow.turn.left.up", accessibilityDescription: "Parent folder") ?? NSImage()
+            return NSImage(systemSymbolName: "arrow.turn.left.up", accessibilityDescription: L("Parent folder")) ?? NSImage()
         }
         let ext = (node.info.name as NSString).pathExtension.lowercased()
         let key = node.isDirectory ? (node.info.isSymlink ? "/link" : "/") : (node.info.isSymlink ? "link." : "") + ext

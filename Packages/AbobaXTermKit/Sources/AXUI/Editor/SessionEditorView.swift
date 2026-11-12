@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXModels
 import AXStorage
@@ -11,6 +12,14 @@ public enum EditorSection: String, CaseIterable, Identifiable, Sendable {
     case organization = "Organization"
 
     public var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .authentication: L("Authentication")
+        case .advanced: L("Advanced")
+        case .organization: L("Organization")
+        }
+    }
 }
 
 struct SessionEditorView: View {
@@ -50,10 +59,10 @@ struct SessionEditorView: View {
         VStack(spacing: 0) {
             Form {
                 Section {
-                    TextField("Host", text: $session.host, prompt: Text(""))
-                    TextField("Name", text: $session.name, prompt: Text(""))
-                    TextField("User", text: $userText, prompt: Text(""))
-                    TextField("Port", text: $portText, prompt: Text("22"))
+                    TextField(L("Host"), text: $session.host, prompt: Text(""))
+                    TextField(L("Name"), text: $session.name, prompt: Text(""))
+                    TextField(L("User"), text: $userText, prompt: Text(""))
+                    TextField(L("Port"), text: $portText, prompt: Text("22"))
                 }
 
                 Section {
@@ -91,19 +100,19 @@ struct SessionEditorView: View {
     @ViewBuilder
     private var authenticationRows: some View {
         Group {
-            Picker("Method", selection: $authKind) {
-                Text("SSH config / agent").tag(AuthMethod.Kind.system)
-                Text("Key file").tag(AuthMethod.Kind.publicKey)
-                Text("Password").tag(AuthMethod.Kind.password)
+            Picker(L("Method"), selection: $authKind) {
+                Text(L("SSH config / agent")).tag(AuthMethod.Kind.system)
+                Text(L("Key file")).tag(AuthMethod.Kind.publicKey)
+                Text(L("Password")).tag(AuthMethod.Kind.password)
             }
             switch authKind {
             case .system:
                 EmptyView()
             case .publicKey:
                 HStack {
-                    Picker("Key", selection: $keyPath) {
+                    Picker(L("Key"), selection: $keyPath) {
                         if keyPath.isEmpty {
-                            Text("None").tag("")
+                            Text(L("None")).tag("")
                         }
                         ForEach(keys) { key in
                             Text(key.type.map { "\(key.fileName)  (\($0))" } ?? key.fileName).tag(key.path)
@@ -112,13 +121,13 @@ struct SessionEditorView: View {
                             Text(keyPath).tag(keyPath)
                         }
                     }
-                    Button("Choose…", action: chooseKeyFile)
+                    Button(L("Choose…"), action: chooseKeyFile)
                 }
             case .password:
-                SecureField("Password", text: $password, prompt: Text(""))
+                SecureField(L("Password"), text: $password, prompt: Text(""))
                 if hasSavedPassword {
-                    LabeledContent("Saved in Keychain") {
-                        Button("Remove", role: .destructive) {
+                    LabeledContent(L("Saved in Keychain")) {
+                        Button(L("Remove"), role: .destructive) {
                             model.removeSavedPassword(for: session.id)
                             hasSavedPassword = false
                         }
@@ -131,15 +140,15 @@ struct SessionEditorView: View {
     @ViewBuilder
     private var advancedRows: some View {
         Group {
-            TextField("Jump host", text: $jumpText, prompt: Text(""))
-            TextField("Extra options", text: $session.extraOptions, prompt: Text(""))
+            TextField(L("Jump host"), text: $jumpText, prompt: Text(""))
+            TextField(L("Extra options"), text: $session.extraOptions, prompt: Text(""))
                 .font(.system(.body, design: .monospaced))
             Toggle(isOn: $session.x11Forwarding) {
-                Text("X11 forwarding")
-                Text("Programs started on the server open as windows on this Mac.")
+                Text(L("X11 forwarding"))
+                Text(L("Programs started on the server open as windows on this Mac."))
                     .foregroundStyle(.secondary)
             }
-            LabeledContent("Command") {
+            LabeledContent(L("Command")) {
                 Text(validationError == nil ? model.commandLinePreview(for: composed) : "—")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -152,19 +161,19 @@ struct SessionEditorView: View {
     @ViewBuilder
     private var organizationRows: some View {
         Group {
-            Picker("Folder", selection: $session.folderID) {
-                Text("Top Level").tag(UUID?.none)
+            Picker(L("Folder"), selection: $session.folderID) {
+                Text(L("Top Level")).tag(UUID?.none)
                 ForEach(sortedFolders) { folder in
                     Text(model.library.path(of: folder.id)).tag(UUID?.some(folder.id))
                 }
             }
-            LabeledContent("Color") {
+            LabeledContent(L("Color")) {
                 HStack(spacing: 6) {
                     colorSwatch(nil)
                     ForEach(SessionColor.allCases, id: \.self) { colorSwatch($0) }
                 }
             }
-            Picker("Icon", selection: Binding(
+            Picker(L("Icon"), selection: Binding(
                 get: { session.icon ?? SessionIcon.default },
                 set: { session.icon = $0 == SessionIcon.default ? nil : $0 }
             )) {
@@ -172,8 +181,8 @@ struct SessionEditorView: View {
                     Label(name, systemImage: name).tag(name)
                 }
             }
-            Toggle("Favorite", isOn: $session.isFavorite)
-            TextField("Notes", text: $session.notes, prompt: Text(""), axis: .vertical)
+            Toggle(L("Favorite"), isOn: $session.isFavorite)
+            TextField(L("Notes"), text: $session.notes, prompt: Text(""), axis: .vertical)
                 .lineLimit(2...4)
         }
     }
@@ -194,7 +203,7 @@ struct SessionEditorView: View {
                 .frame(width: 20, height: 20)
         }
         .buttonStyle(.plain)
-        .help(color?.rawValue.capitalized ?? "Default")
+        .help(color.map { L($0.rawValue.capitalized) } ?? L("Default"))
     }
 
     private var footer: some View {
@@ -206,11 +215,11 @@ struct SessionEditorView: View {
                     .lineLimit(2)
             }
             Spacer()
-            Button("Cancel", role: .cancel) { dismiss() }
+            Button(L("Cancel"), role: .cancel) { dismiss() }
                 .keyboardShortcut(.cancelAction)
-            Button("Save & Connect") { save(connect: true) }
+            Button(L("Save & Connect")) { save(connect: true) }
                 .disabled(validationError != nil)
-            Button(request.isNew ? "Create" : "Save") { save(connect: false) }
+            Button(request.isNew ? L("Create") : L("Save")) { save(connect: false) }
                 .keyboardShortcut(.defaultAction)
                 .disabled(validationError != nil)
         }
@@ -246,10 +255,10 @@ struct SessionEditorView: View {
     private var validationError: String? {
         let port = portText.trimmingCharacters(in: .whitespaces)
         if !port.isEmpty, Int(port).map({ (1...65535).contains($0) }) != true {
-            return "Port must be a number from 1 to 65535"
+            return L("Port must be a number from 1 to 65535")
         }
         if session.host.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "Host is required"
+            return L("Host is required")
         }
         do {
             _ = try model.launcher.builder.arguments(for: composed)
@@ -268,7 +277,7 @@ struct SessionEditorView: View {
 
     private func chooseKeyFile() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Private Key"
+        panel.title = L("Choose Private Key")
         panel.showsHiddenFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -293,7 +302,7 @@ private struct SectionTabs: View {
                         .frame(height: 16)
                         .opacity(selection == section || selection == EditorSection.allCases[index - 1] ? 0 : 1)
                 }
-                SectionTab(title: section.rawValue, isSelected: selection == section) {
+                SectionTab(title: section.title, isSelected: selection == section) {
                     selection = section
                 }
             }

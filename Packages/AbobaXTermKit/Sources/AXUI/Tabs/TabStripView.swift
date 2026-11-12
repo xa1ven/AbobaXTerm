@@ -1,3 +1,4 @@
+import AXL10n
 import AXTerminal
 import SwiftUI
 
@@ -20,7 +21,7 @@ struct TabStripView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
-                    .help("New Local Terminal (⌘T)")
+                    .help(L("New Local Terminal (⌘T)"))
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
@@ -38,6 +39,7 @@ private struct TabButton: View {
     let tab: TerminalTab
     let isSelected: Bool
     @State private var hovering = false
+    @State private var hoveringClose = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -52,12 +54,16 @@ private struct TabButton: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .bold))
-                    .frame(width: 16, height: 16)
+                    .foregroundStyle(hoveringClose ? .primary : .secondary)
+                    .frame(width: 18, height: 18)
+                    // Marks the button under the pointer, so a tab is not closed by accident.
+                    .background(Color.primary.opacity(hoveringClose ? 0.18 : 0), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
+            .onHover { hoveringClose = $0 }
             .opacity(hovering || isSelected ? 1 : 0)
-            .help("Close Tab (⌘W)")
+            .help(L("Close Tab (⌘W)"))
         }
         .padding(.leading, 10)
         .padding(.trailing, 4)
@@ -83,12 +89,12 @@ private struct TabButton: View {
             return true
         }
         .contextMenu {
-            Button(tab.isLocal ? "Restart" : "Reconnect") { tab.reconnect() }
+            Button(tab.isLocal ? L("Restart") : L("Reconnect")) { tab.reconnect() }
                 .disabled(tab.state.isActive)
-            Button("Duplicate Tab") { model.duplicateTab(tab.id) }
+            Button(L("Duplicate Tab")) { model.duplicateTab(tab.id) }
             Divider()
-            Button("Close Tab") { model.closeTab(tab.id) }
-            Button("Close Other Tabs") { model.closeOtherTabs(tab.id) }
+            Button(L("Close Tab")) { model.closeTab(tab.id) }
+            Button(L("Close Other Tabs")) { model.closeOtherTabs(tab.id) }
                 .disabled(model.tabs.count < 2)
         }
     }

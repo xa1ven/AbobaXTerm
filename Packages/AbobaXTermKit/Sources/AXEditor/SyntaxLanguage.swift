@@ -1,3 +1,4 @@
+import AXL10n
 import Foundation
 
 /// Languages the built-in editor can highlight.
@@ -9,7 +10,7 @@ public enum SyntaxLanguage: String, CaseIterable, Identifiable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .plain: "Plain Text"
+        case .plain: L("Plain Text")
         case .shell: "Shell"
         case .python: "Python"
         case .json: "JSON"

@@ -1,3 +1,4 @@
+import AXL10n
 import AXModels
 import Foundation
 
@@ -13,7 +14,7 @@ public struct SessionRepository: Sendable {
         public var errorDescription: String? {
             switch self {
             case .corrupted(let url, let error):
-                "sessions.json could not be read (\(error.localizedDescription)). A copy was saved to \(url.path)."
+                L("sessions.json could not be read (%1$@). A copy was saved to %2$@.", error.localizedDescription, url.path)
             }
         }
     }

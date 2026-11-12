@@ -1,3 +1,4 @@
+import AXL10n
 import AXTerminal
 import SwiftUI
 
@@ -35,8 +36,8 @@ private struct DisconnectedBanner: View {
     var body: some View {
         switch tab.state {
         case .exited(let code):
-            let what = tab.isLocal ? "Shell exited" : (code == 0 ? "Session ended" : "Connection closed")
-            banner(text: code == 0 || code == nil ? what : "\(what) (exit code \(code!))",
+            let what = tab.isLocal ? L("Shell exited") : (code == 0 ? L("Session ended") : L("Connection closed"))
+            banner(text: code == 0 || code == nil ? what : L("%@ (exit code %@)", what, code!),
                    icon: "bolt.horizontal.circle")
         case .failed(let message):
             banner(text: message, icon: "exclamationmark.triangle.fill")
@@ -49,7 +50,7 @@ private struct DisconnectedBanner: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
             Text(text).lineLimit(2)
-            Button(tab.isLocal ? "Restart  ⌘R" : "Reconnect  ⌘R") { tab.reconnect() }
+            Button(tab.isLocal ? L("Restart  ⌘R") : L("Reconnect  ⌘R")) { tab.reconnect() }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -66,20 +67,20 @@ struct EmptyStateView: View {
             Image(systemName: "terminal")
                 .font(.system(size: 48, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("No Open Sessions")
+            Text(L("No Open Sessions"))
                 .font(.title2.weight(.semibold))
-            Text("Double-click a session in the sidebar to connect, or open a terminal on this Mac.")
+            Text(L("Double-click a session in the sidebar to connect, or open a terminal on this Mac."))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             HStack {
-                Button("New Session…") { model.newSession() }
-                Button("Start Local Terminal") { model.openLocalTerminal() }
+                Button(L("New Session…")) { model.newSession() }
+                Button(L("Start Local Terminal")) { model.openLocalTerminal() }
                     .buttonStyle(.borderedProminent)
             }
             let recent = model.recentSessions
             if !recent.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Recent")
+                    Text(L("Recent"))
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     ForEach(recent) { session in

@@ -1,3 +1,4 @@
+import AXL10n
 import AppKit
 import AXModels
 import AXSSH
@@ -23,6 +24,8 @@ public final class AppModel {
     /// Which tab of the sidebar is shown.
     public var sidebarMode: SidebarMode = .sessions
     public var sidebarSelection: SidebarItem?
+    /// Folders shown open in the sidebar. Not saved: every launch starts with all folders closed.
+    public var expandedFolders: Set<UUID> = []
 
     // MARK: Tabs
 
@@ -210,7 +213,7 @@ public final class AppModel {
         do {
             library = try repository.load()
         } catch {
-            errorMessage = ErrorMessage(title: "Could not load sessions", message: error.localizedDescription)
+            errorMessage = ErrorMessage(title: L("Could not load sessions"), message: error.localizedDescription)
         }
     }
 
@@ -255,7 +258,7 @@ public final class AppModel {
             do {
                 try await Task.detached { try repository.save(snapshot) }.value
             } catch {
-                self?.errorMessage = ErrorMessage(title: "Could not save sessions", message: error.localizedDescription)
+                self?.errorMessage = ErrorMessage(title: L("Could not save sessions"), message: error.localizedDescription)
             }
         }
     }
@@ -284,7 +287,7 @@ public final class AppModel {
                 try keychain.deletePassword(account: account)
             }
         } catch {
-            errorMessage = ErrorMessage(title: "Keychain error", message: error.localizedDescription)
+            errorMessage = ErrorMessage(title: L("Keychain error"), message: error.localizedDescription)
         }
         for tab in tabs where tab.session?.id == session.id {
             tab.updateSession(session)
@@ -303,7 +306,7 @@ public final class AppModel {
     public func duplicateSession(_ id: UUID) {
         guard var copy = library.session(id: id) else { return }
         copy.id = UUID()
-        copy.name = copy.displayName + " copy"
+        copy.name = L("%@ copy", copy.displayName)
         copy.createdAt = Date()
         copy.lastConnectedAt = nil
         mutate { $0.upsert(copy) }
@@ -340,7 +343,7 @@ public final class AppModel {
     // MARK: Folders
 
     public func requestNewFolder(parent: UUID? = nil) {
-        folderNameRequest = FolderNameRequest(mode: .create(parent: parent), name: "New Folder")
+        folderNameRequest = FolderNameRequest(mode: .create(parent: parent), name: L("New Folder"))
     }
 
     public func requestRenameFolder(_ id: UUID) {

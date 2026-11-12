@@ -1,4 +1,5 @@
 import AXModels
+import AXL10n
 import Foundation
 
 /// Builds the argv for the system `ssh` binary from a `Session`.
@@ -13,12 +14,12 @@ public struct SSHCommandBuilder: Sendable {
 
         public var errorDescription: String? {
             switch self {
-            case .emptyHost: "Host is empty"
-            case .invalidHost(let h): "Invalid host: \(h)"
-            case .invalidPort(let p): "Invalid port: \(p)"
-            case .invalidJumpHost(let j): "Invalid jump host: \(j)"
-            case .invalidKeyPath: "Key file is not set"
-            case .invalidExtraOptions(let reason): "Extra options: \(reason)"
+            case .emptyHost: L("Host is empty")
+            case .invalidHost(let h): L("Invalid host: %@", h)
+            case .invalidPort(let p): L("Invalid port: %@", p)
+            case .invalidJumpHost(let j): L("Invalid jump host: %@", j)
+            case .invalidKeyPath: L("Key file is not set")
+            case .invalidExtraOptions(let reason): L("Extra options: %@", reason)
             }
         }
     }

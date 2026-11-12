@@ -1,3 +1,4 @@
+import AXL10n
 import Darwin
 import Foundation
 
@@ -48,8 +49,8 @@ public enum X11ServerError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .notInstalled: "The built-in X server is missing from the app."
-        case .startFailed(let why): "The built-in X server did not start: \(why)"
+        case .notInstalled: L("The built-in X server is missing from the app.")
+        case .startFailed(let why): L("The built-in X server did not start: %@", why)
         }
     }
 }

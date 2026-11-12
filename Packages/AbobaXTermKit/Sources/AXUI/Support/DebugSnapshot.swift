@@ -14,7 +14,7 @@ private let debugSessionID = UUID(uuidString: "D0D0D0D0-0000-0000-0000-000000000
 ///     AbobaXTerm.app/Contents/MacOS/AbobaXTerm
 ///
 /// Steps: home, local, editor, editor-auth, editor-advanced, editor-org,
-/// settings, monitor-details (the status bar popovers of the selected SSH tab in one window), dark, light (dark/light change the saved preference), sidebar-anim
+/// settings, sidebar-expand (opens all folders), sidebar-click-N (clicks row N of the sessions list), terminal-focus, monitor-details (the status bar popovers of the selected SSH tab in one window), dark, light (dark/light change the saved preference), sidebar-anim
 /// (collapses and expands the sidebar, logs its frame over time to sidebar-anim.txt). The app exits after the last step.
 @MainActor
 enum DebugSnapshot {
@@ -28,6 +28,8 @@ enum DebugSnapshot {
             try? await Task.sleep(for: .seconds(1.5))
             // In-process only (the saved preference is untouched): glass renders
             // white in snapshots, so dark-mode text would be invisible.
+            // ABX_SNAPSHOT_LANG=ru: interface language for this run only.
+            if let language = env["ABX_SNAPSHOT_LANG"].flatMap(AppLanguage.init) { L10n.shared.overrideForThisRun(language) }
             if env["ABX_SNAPSHOT_LIGHT"] != nil { NSApp.appearance = NSAppearance(named: .aqua) }
             // ABX_SNAPSHOT_WIDTH=1500: a wider main window, e.g. to see the whole status bar.
             if let width = env["ABX_SNAPSHOT_WIDTH"].flatMap(Double.init), let window = NSApp.windows.first(where: \.isVisible) {
@@ -217,8 +219,36 @@ enum DebugSnapshot {
             controller.saveDocument(nil)
         case "dark": model.appearance = .dark
         case "light": model.appearance = .light
+        case "sidebar-expand":
+            model.expandedFolders = Set(model.library.folders.map(\.id))
+        case _ where step.hasPrefix("sidebar-click-"):
+            // sidebar-click-N: a real left click in the middle of row N of the sessions list.
+            guard let row = Int(step.dropFirst("sidebar-click-".count)),
+                  let table = sessionsTable(), row < table.numberOfRows, let window = table.window else { break }
+            let rect = table.rect(ofRow: row)
+            let point = table.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                if let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                    NSApp.postEvent(event, atStart: false)
+                }
+            }
+        case "terminal-focus": model.focusTerminal()
         default: break
         }
+    }
+
+    /// The table behind the sessions list of the main window.
+    private static func sessionsTable() -> NSTableView? {
+        func find(_ v: NSView) -> NSTableView? {
+            if let t = v as? NSTableView, !(t is FileOutline) { return t }
+            for sub in v.subviews { if let t = find(sub) { return t } }
+            return nil
+        }
+        for window in NSApp.windows where window.isVisible && window.sheetParent == nil {
+            if let root = window.contentView?.superview, let table = find(root) { return table }
+        }
+        return nil
     }
 
     /// The glass sidebar does not draw in snapshots; capture the file outline
@@ -230,6 +260,15 @@ enum DebugSnapshot {
             return nil
         }
         var lines = ["sidebarMode=\(model.sidebarMode)"]
+        if let table = sessionsTable() {
+            let focused = (table.window?.firstResponder as? NSView)?.isDescendant(of: table) ?? false
+            lines.append("sessions: rows=\(table.numberOfRows) selection=\(model.sidebarSelection.map { "\($0)" } ?? "-") tableSelected=\(Array(table.selectedRowIndexes)) focused=\(focused) highlightOff=\(table.selectionHighlightStyle == .none)")
+            if let view = table.enclosingScrollView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?
+                    .write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(prefix)-sessions.png"))
+            }
+        }
         if let browser = model.selectedFileBrowser {
             lines.append("path=\(browser.currentPath) search=\(browser.isSearchVisible) results=\(browser.searchResults.count) index=\(browser.searchIndex.map(String.init) ?? "-") message=\(browser.searchMessage ?? "-")")
         }
