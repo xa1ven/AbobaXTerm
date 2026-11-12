@@ -10,7 +10,10 @@ struct AbobaXTermApp: App {
         Window("AbobaXTerm", id: "main") {
             MainView()
                 .environment(AppDelegate.model)
-                .frame(minWidth: 760, minHeight: 420)
+                // Leading alignment: while the sidebar expands, the split view is
+                // briefly wider than the window, and a centered frame would shift
+                // it left by half the sidebar (slow first half, then a jump).
+                .frame(minWidth: 760, minHeight: 420, alignment: .topLeading)
         }
         .defaultSize(width: 1240, height: 780)
         .commands {

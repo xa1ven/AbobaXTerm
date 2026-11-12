@@ -28,6 +28,25 @@ struct X11Desktop: Equatable, Sendable {
                   height: max(1, Int((rect.height * scale).rounded())))
     }
 
+    /// The same root window laid over another part of the Mac desktop, so that
+    /// it covers `rect` (centred on it; top-left aligned where `rect` is larger).
+    /// The root cannot grow while the server runs, but where it lies is only
+    /// this app's convention.
+    func recentered(on rect: CGRect) -> X11Desktop {
+        var moved = self
+        moved.frame.origin.x = rect.width > frame.width ? rect.minX : (rect.midX - frame.width / 2).rounded()
+        moved.frame.origin.y = rect.height > frame.height ? rect.maxY - frame.height : (rect.midY - frame.height / 2).rounded()
+        return moved
+    }
+
+    /// Whether the root lies under the whole of `rect` (as far as it can: a
+    /// rectangle larger than the root counts when its top-left part is covered).
+    func reaches(_ rect: CGRect) -> Bool {
+        let needed = CGRect(x: rect.minX, y: rect.maxY - min(rect.height, frame.height),
+                            width: min(rect.width, frame.width), height: min(rect.height, frame.height))
+        return frame.insetBy(dx: -0.5, dy: -0.5).contains(needed)
+    }
+
     /// X rectangle (x, y, width, height) of a Cocoa rectangle, e.g. the area free of menu bar and Dock.
     func xRect(for rect: CGRect) -> XRect {
         let g = geometry(forContentRect: rect)

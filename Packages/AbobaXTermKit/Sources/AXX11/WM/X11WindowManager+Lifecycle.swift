@@ -27,6 +27,7 @@ extension X11WindowManager {
         publishFrameExtents(window)
         publishClientList()
         connection.mapWindow(window.id)
+        await reloadIcon(of: window)
     }
 
     /// Where a new managed window goes, as a Cocoa content rectangle.
@@ -95,6 +96,44 @@ extension X11WindowManager {
         }
     }
 
+    // MARK: Icon
+
+    /// Reads _NET_WM_ICON. It is not among `tracked`: icons run to megabytes
+    /// and are read with their own size limit.
+    func reloadIcon(of window: X11Window) async {
+        let value = try? await connection.property(window.id, atoms[.netWMIcon], maxBytes: 4 << 20)
+        guard windows[window.id] === window else { return }
+        let icon = value.flatMap { X11Icon.best(in: $0.longs) }
+        window.icon = icon.flatMap { icon in
+            icon.makeImage().map { NSImage(cgImage: $0, size: CGSize(width: icon.width, height: icon.height)) }
+        }
+    }
+
+    /// The Dock tile of a minimized window: its contents and the program's icon.
+    /// Windows without an icon keep the system look.
+    func dockTileView(for window: X11Window, size: CGSize) -> X11DockTileView? {
+        guard let icon = window.icon, !window.overrideRedirect else { return nil }
+        return X11DockTileView(contents: window.surface.makeImage(), icon: icon, size: size)
+    }
+
+    func hostWillMiniaturize(_ window: X11Window) {
+        guard let host = window.host else { return }
+        let tile = host.dockTile
+        tile.contentView = dockTileView(for: window, size: tile.size)
+        tile.display()
+    }
+
+    static func png(_ view: NSView) -> Data? {
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return rep.representation(using: .png, properties: [:])
+    }
+
+    static func png(_ image: NSImage) -> Data? {
+        image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            .flatMap { NSBitmapImageRep(cgImage: $0).representation(using: .png, properties: [:]) }
+    }
+
     // MARK: Showing (MapNotify)
 
     /// The window became viewable: start mirroring its pixels and put it on screen.
@@ -122,6 +161,7 @@ extension X11WindowManager {
             let host = window.host ?? makeHost(for: window)
             window.host = host
             applyHostFrame(window)
+            applyTitle(window, host: host)
             if window.overrideRedirect {
                 host.orderFrontRegardless()
             } else if NSApp.isActive {
@@ -141,7 +181,9 @@ extension X11WindowManager {
     /// Override-redirect helpers parked outside the screen are never shown.
     private func isOnDesktop(_ window: X11Window) -> Bool {
         let g = window.geometry
-        return g.x < desktop.pixelWidth && g.y < desktop.pixelHeight && g.x + g.width > 0 && g.y + g.height > 0
+        // Once the root has been moved about, real popups can lie beyond its far edges.
+        let within = rootHasMoved || (g.x < desktop.pixelWidth && g.y < desktop.pixelHeight)
+        return within && g.x + g.width > 0 && g.y + g.height > 0
     }
 
     private func makeHost(for window: X11Window) -> NSWindow {
@@ -183,8 +225,16 @@ extension X11WindowManager {
     func applyTitle(_ window: X11Window, host: NSWindow? = nil) {
         guard let host = host ?? window.host, !window.overrideRedirect else { return }
         host.title = window.properties.title
+        updateWindowsMenuItem(window, host: host)
         // Which machine the program runs on.
         host.subtitle = window.properties.clientMachine ?? ""
+    }
+
+    /// AppKit lists titled windows in the Window menu by itself; windows whose
+    /// program draws its own title bar are borderless here and are added by hand.
+    private func updateWindowsMenuItem(_ window: X11Window, host: NSWindow) {
+        guard !host.styleMask.contains(.titled), window.properties.kind != .splash else { return }
+        NSApp.changeWindowsItem(host, title: window.properties.title, filename: false)
     }
 
     func applySizeHints(_ window: X11Window, host: NSWindow? = nil) {
@@ -206,6 +256,7 @@ extension X11WindowManager {
         window.isMapped = false
         detachContents(window)
         window.host?.orderOut(nil)
+        if let host = window.host { NSApp.removeWindowsItem(host) }
         if window.isManaged {
             window.isManaged = false
             setWMState(window, normal: false)

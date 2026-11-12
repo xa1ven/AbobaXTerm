@@ -188,12 +188,9 @@ final class XConnection: @unchecked Sendable {
                     onAsyncError?(error)
                 }
             case 1:
-                var packet = header
-                let extra = Int(header.u32(4)) * 4
-                if extra > 0 {
-                    guard let rest = Self.readExactly(fd, extra) else { break }
-                    packet.append(contentsOf: rest)
-                }
+                // Replies can be megabytes of pixels (GetImage): read the rest straight
+                // into the packet instead of into a buffer that is then appended.
+                guard let packet = Self.readRest(fd, after: header, count: Int(header.u32(4)) * 4) else { break }
                 takeWaiter(header.u16(2))?.resume(returning: packet)
             case 35:
                 // GenericEvent: the only event kind longer than 32 bytes.
@@ -222,6 +219,28 @@ final class XConnection: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return waiting.removeValue(forKey: seq)
+    }
+
+    private static func readRest(_ fd: Int32, after header: [UInt8], count: Int) -> [UInt8]? {
+        guard count > 0 else { return header }
+        var complete = true
+        let packet = [UInt8](unsafeUninitializedCapacity: header.count + count) { buffer, initialized in
+            _ = buffer.initialize(from: header)
+            var offset = header.count
+            while offset < buffer.count {
+                let n = read(fd, buffer.baseAddress! + offset, buffer.count - offset)
+                if n > 0 {
+                    offset += n
+                } else if n == 0 || errno != EINTR {
+                    complete = false
+                    break
+                }
+            }
+            // Bytes past `offset` were never written; the packet is dropped in that case.
+            if !complete { buffer[offset...].initialize(repeating: 0) }
+            initialized = buffer.count
+        }
+        return complete ? packet : nil
     }
 
     private static func readExactly(_ fd: Int32, _ count: Int) -> [UInt8]? {

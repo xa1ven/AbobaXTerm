@@ -115,6 +115,14 @@ extension XConnection {
         send(r)
     }
 
+    /// Names a cursor the way libXcursor names theme cursors (reported back by `xfixesCursorImage`).
+    func xfixesSetCursorName(_ ext: XExtensions, _ cursor: UInt32, name: String) {
+        let bytes = Array(name.utf8)
+        let r = XRequest(ext.xfixes, 23)
+        r.u32(cursor).u16(UInt16(bytes.count)).u16(0).raw(bytes).pad()
+        send(r)
+    }
+
     /// Notifies about owner changes of `selection` (mask 1 = SetSelectionOwner).
     func xfixesSelectSelectionInput(_ ext: XExtensions, _ window: UInt32, selection: UInt32) {
         let r = XRequest(ext.xfixes, 2)

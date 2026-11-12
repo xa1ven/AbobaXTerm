@@ -102,6 +102,93 @@ extension X11WindowManager {
         connection.configureWindow(window.id, mask: [.x, .y, .width, .height], geometry: target)
     }
 
+    // MARK: Screens
+
+    /// Makes sure the root window lies under `window`, so the X pointer can
+    /// reach it and its menus open next to it.
+    ///
+    /// The root is as large as the screens were when the server started. A
+    /// window on a screen connected later (or rearranged) is outside it; the
+    /// root is then laid over that window instead, and every X window is told
+    /// its new root position. Nothing moves on the Mac.
+    func ensureReachable(_ window: X11Window) {
+        guard presentsWindows, !window.overrideRedirect, window.isMapped, let host = window.host, host.isVisible,
+              !host.isMiniaturized else { return }
+        let content = host.contentRect(forFrameRect: host.frame)
+        // Only the part on screen matters (windows may hang over a screen edge).
+        let screens = NSScreen.screens.map(\.frame)
+        let onScreen = screens.map { $0.intersection(content) }.filter { !$0.isEmpty }
+        guard let first = onScreen.first else { return }
+        let needed = onScreen.dropFirst().reduce(first) { $0.union($1) }
+        guard !desktop.reaches(needed) else { return }
+        moveRoot(to: desktop.recentered(on: needed))
+    }
+
+    /// The pointer is about to go to a root position outside the root window
+    /// (`window` is larger than the root, or was just dragged away): lay the
+    /// root under the pointer. Returns false if the position was fine.
+    func bringRoot(under position: (x: Int, y: Int), in window: X11Window) -> Bool {
+        guard presentsWindows, window.host?.isVisible == true,
+              !(0..<desktop.pixelWidth).contains(position.x) || !(0..<desktop.pixelHeight).contains(position.y) else { return false }
+        let spot = CGRect(x: desktop.frame.minX + CGFloat(position.x) / desktop.scale,
+                          y: desktop.frame.maxY - CGFloat(position.y) / desktop.scale, width: 0, height: 0)
+        let before = desktop
+        ensureReachable(window)
+        let x = (spot.minX - desktop.frame.minX) * desktop.scale, y = (desktop.frame.maxY - spot.minY) * desktop.scale
+        if desktop == before || !(0..<CGFloat(desktop.pixelWidth)).contains(x) || !(0..<CGFloat(desktop.pixelHeight)).contains(y) {
+            moveRoot(to: desktop.recentered(on: spot))
+        }
+        return true
+    }
+
+    /// Lays the root window over another part of the Mac desktop and gives
+    /// every X window its new root position. Nothing moves on screen.
+    func moveRoot(to target: X11Desktop) {
+        let dx = Int(((desktop.frame.minX - target.frame.minX) * desktop.scale).rounded())
+        let dy = Int(((target.frame.maxY - desktop.frame.maxY) * desktop.scale).rounded())
+        guard dx != 0 || dy != 0 else { return }
+        desktop = target
+        rootHasMoved = true
+        if let old = pointer { pointer = (old.x + dx, old.y + dy) }
+        for window in windows.values where window.isMapped {
+            var moved = window.geometry
+            moved.x += dx
+            moved.y += dy
+            connection.configureWindow(window.id, mask: [.x, .y], geometry: moved)
+            if !window.overrideRedirect { window.sentGeometry = moved }
+            // Pointer positions are computed from this before the server confirms.
+            window.geometry = moved
+        }
+        publishWorkarea()
+    }
+
+    /// The screens changed while windows are open (the root keeps its size
+    /// until the server can restart): bring back windows left off screen and
+    /// tell clients the new free area.
+    func screensChanged() {
+        guard presentsWindows else { return }
+        let screens = NSScreen.screens
+        guard let home = NSScreen.main ?? screens.first else { return }
+        for window in windows.values where !window.overrideRedirect {
+            guard let host = window.host, host.isVisible, !host.isMiniaturized else { continue }
+            // Reachable means: enough of the title bar is on some screen to grab it.
+            let grip = CGRect(x: host.frame.minX, y: host.frame.maxY - 30, width: host.frame.width, height: 30)
+            let visible = screens.contains { screen in
+                let part = screen.visibleFrame.intersection(grip)
+                return part.width >= 60 && part.height >= 15
+            }
+            guard !visible else { continue }
+            var frame = host.frame
+            let area = home.visibleFrame
+            frame.origin.x = min(max(area.midX - frame.width / 2, area.minX), max(area.minX, area.maxX - frame.width))
+            frame.origin.y = max(area.minY, min(area.maxY - frame.height, area.midY - frame.height / 2))
+            if frame.height > area.height { frame.origin.y = area.maxY - frame.height }
+            host.setFrame(frame, display: true)
+        }
+        if let id = focusedWindow, let window = windows[id] { ensureReachable(window) }
+        publishWorkarea()
+    }
+
     // MARK: Stacking
 
     /// Restacks the X windows like the Mac windows on screen, so the pointer
@@ -128,8 +215,10 @@ extension X11WindowManager {
     // MARK: Focus
 
     func hostBecameKey(_ window: X11Window) {
+        ensureReachable(window)
         syncStackingFromScreen()
         giveFocus(to: window)
+        publishWorkarea()
         keyboard.syncModifiers(NSEvent.modifierFlags)
         offerPasteboard()
     }

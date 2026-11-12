@@ -1,9 +1,14 @@
 // Development harness for the embedded X server.
 //
 // Starts the server, runs a command with DISPLAY pointing at it, optionally
-// plays scripted input, then dumps every X window (state + PNG) to a directory.
+// plays scripted input, then dumps every X window (state + PNG) to a directory;
+// a window with its own icon also gets NAME-N-icon.png and NAME-N-dock.png (its Dock tile).
 //
-//   abx-x11-harness --out DIR [--show] [--wait SECONDS] [--script STEPS] -- COMMAND...
+//   abx-x11-harness --out DIR [--show] [--root WxH] [--wait SECONDS] [--script STEPS] -- COMMAND...
+//
+// --root makes the X root window WxH points (top-left of the screens) instead of
+// covering all screens: with --show, windows then open outside it, as they do on
+// a monitor connected while X programs are running.
 //
 // STEPS is a ';'-separated list:
 //   wait:1.5            sleep
@@ -17,6 +22,9 @@
 //   pasteboard          print the pasteboard text
 //   close:N             ask the N-th window to close
 //   dump:NAME           write a snapshot named NAME
+//   stats[:LABEL]       print draw timing since the previous `stats` and reset it
+//   drag:N:X1:Y1:X2:Y2[:STEPS]   press at X1,Y1, move to X2,Y2 in STEPS moves (16 ms apart), release
+//   sweep:N:X1:Y1:X2:Y2[:STEPS]  the same without pressing (hover effects)
 //
 // The command gets DISPLAY, XAUTHORITY and ABX_XAUTH (the xauth stand-in for `ssh -o XAuthLocation=`).
 import AppKit
@@ -28,6 +36,7 @@ final class Harness {
     var show = false
     var scale: Double?
     var wait = 3.0
+    var root: String?
     var script: [String] = []
     var command: [String] = []
     let service: X11Service
@@ -39,6 +48,7 @@ final class Harness {
             case "--out": out = args.popFirst() ?? out
             case "--show": show = true
             case "--scale": scale = Double(args.popFirst() ?? "")
+            case "--root": root = args.popFirst()
             case "--wait": wait = Double(args.popFirst() ?? "") ?? wait
             case "--script": script = (args.popFirst() ?? "").split(separator: ";").map(String.init)
             case "--": command = Array(args); args = []
@@ -52,6 +62,9 @@ final class Harness {
         // Never touch the user's real clipboard from the harness.
         service.pasteboard = NSPasteboard(name: NSPasteboard.Name("com.mikhail.AbobaXTerm.harness"))
         service.scaleOverride = scale.map { CGFloat($0) }
+        if let parts = root?.split(separator: "x").compactMap({ Double($0) }), parts.count == 2 {
+            service.rootSizeOverride = CGSize(width: parts[0], height: parts[1])
+        }
     }
 
     func log(_ text: String) { FileHandle.standardError.write(Data((text + "\n").utf8)) }
@@ -127,6 +140,20 @@ final class Harness {
             if let id = window(1), !service.debugShortcut(window: id, keyCode: UInt8(int(2))) { log("step '\(step)': not a shortcut") }
         case "close":
             if let id = window(1) { service.debugClose(window: id) }
+        case "stats":
+            log("stats \(parts.count > 1 ? parts[1] : ""): \(service.debugDrawStats())")
+        case "drag", "sweep":
+            if let id = window(1) {
+                let steps = max(1, parts.count > 6 ? int(6) : 30)
+                service.debugMovePointer(window: id, x: int(2), y: int(3))
+                if parts[0] == "drag" { service.debugButton(window: id, x: int(2), y: int(3), pressed: true) }
+                for step in 1...steps {
+                    try? await Task.sleep(for: .milliseconds(16))
+                    service.debugMovePointer(window: id, x: int(2) + (int(4) - int(2)) * step / steps,
+                                             y: int(3) + (int(5) - int(3)) * step / steps)
+                }
+                if parts[0] == "drag" { service.debugButton(window: id, x: int(4), y: int(5), pressed: false) }
+            }
         case "dump":
             dump(parts.count > 1 ? parts[1] : "step")
         default:
@@ -142,6 +169,9 @@ final class Harness {
             let frame = window.hostFrame.map { " host=\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))" } ?? ""
             lines.append("\(index) 0x\(String(window.id, radix: 16)) \(kind) mapped=\(window.isMapped) "
                 + "\(window.width)x\(window.height)+\(window.x)+\(window.y)\(frame) \"\(window.title)\"")
+            for (suffix, data) in [("icon", window.icon), ("dock", window.dockTile)] {
+                if let data { try? data.write(to: URL(fileURLWithPath: out).appendingPathComponent("\(name)-\(index)-\(suffix).png")) }
+            }
             if let png = window.png {
                 try? png.write(to: URL(fileURLWithPath: out).appendingPathComponent("\(name)-\(index).png"))
             }

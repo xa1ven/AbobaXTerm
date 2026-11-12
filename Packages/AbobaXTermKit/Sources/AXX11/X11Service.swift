@@ -34,6 +34,9 @@ public final class X11Service {
     public var pasteboard = NSPasteboard.general
     /// Fixed scale for tests; nil follows the screens.
     public var scaleOverride: CGFloat?
+    /// Fixed root size in points for the harness (a root smaller than the
+    /// screens, as after connecting a monitor); nil covers all screens.
+    public var rootSizeOverride: CGSize?
     /// Called when the number or titles of X windows change.
     public var onChange: (() -> Void)?
 
@@ -42,6 +45,8 @@ public final class X11Service {
     private var startTask: Task<String, Error>?
     private var generation = 0
     private var restartPending = false
+    /// The desktop the running server was started for.
+    private var startedDesktop: X11Desktop?
     private var screenObserver: NSObjectProtocol?
 
     public init(runtimeDirectory: URL, installation: X11ServerInstallation? = .locate()) {
@@ -50,16 +55,26 @@ public final class X11Service {
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.applyDesktopChange() }
+            MainActor.assumeIsolated { self?.applyDesktopChange(screensChanged: true) }
         }
     }
 
     /// The root window's size and scale are fixed when the server starts. When
     /// the screens or the HiDPI preference change, restart it — but only while
     /// no X program has a window open; otherwise as soon as the last one closes.
-    private func applyDesktopChange() {
-        guard case .running = state, let manager else { return }
-        guard currentDesktop() != manager.desktop else {
+    /// Until then the window manager makes do with the root it has
+    /// (`X11WindowManager.ensureReachable`).
+    private func applyDesktopChange(screensChanged: Bool = false) {
+        guard case .running = state, manager != nil else { return }
+        if screensChanged, windowCount > 0 {
+            // AppKit moves windows off a disconnected screen itself; look afterwards.
+            let generation = generation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, self.generation == generation else { return }
+                self.manager?.screensChanged()
+            }
+        }
+        guard currentDesktop() != startedDesktop else {
             restartPending = false
             return
         }
@@ -124,6 +139,7 @@ public final class X11Service {
         let generation = generation
         do {
             let desktop = currentDesktop()
+            startedDesktop = desktop
             let server = X11ServerProcess(installation: installation, directory: runtimeDirectory)
             let endpoint = try await server.start(width: desktop.pixelWidth, height: desktop.pixelHeight,
                                                   dpi: Int(96 * desktop.scale))
@@ -174,6 +190,10 @@ public final class X11Service {
         let union = frames.dropFirst().reduce(frames.first ?? CGRect(x: 0, y: 0, width: 1440, height: 900)) { $0.union($1) }
         let densest = NSScreen.screens.map(\.backingScaleFactor).max() ?? 1
         let scale = scaleOverride ?? (prefersHiDPI ? max(1, densest.rounded()) : 1)
+        if let size = rootSizeOverride {
+            return X11Desktop(frame: CGRect(x: union.minX, y: union.maxY - size.height, width: size.width, height: size.height),
+                              scale: scale)
+        }
         return X11Desktop(frame: union, scale: scale)
     }
 
@@ -193,13 +213,16 @@ public final class X11Service {
         public var overrideRedirect: Bool
         public var hostFrame: CGRect?
         public var png: Data?
+        public var icon: Data?
+        public var dockTile: Data?
     }
 
     public func debugWindows(includePixels: Bool = true) -> [WindowDump] {
         (manager?.snapshot(includePixels: includePixels) ?? []).map {
             WindowDump(id: $0.id, title: $0.title, x: $0.geometry.x, y: $0.geometry.y, width: $0.geometry.width,
                        height: $0.geometry.height, isMapped: $0.isMapped, overrideRedirect: $0.overrideRedirect,
-                       hostFrame: $0.hostFrame, png: $0.png)
+                       hostFrame: $0.hostFrame, png: $0.png,
+                       icon: $0.icon, dockTile: $0.dockTile)
         }
     }
 
@@ -227,6 +250,20 @@ public final class X11Service {
     public func debugShortcut(window id: UInt32, keyCode: UInt8) -> Bool {
         guard let manager, let window = manager.windows[id] else { return false }
         return manager.performShortcut(macKey: UInt16(keyCode), in: window)
+    }
+
+    /// Presses or releases the left button at a position in a window (for scripted drags).
+    public func debugButton(window id: UInt32, x: Int, y: Int, pressed: Bool) {
+        guard let manager, let window = manager.windows[id] else { return }
+        manager.movePointer(to: CGPoint(x: x, y: y), in: window)
+        manager.connection.fakeInput(manager.ext, pressed ? .buttonPress : .buttonRelease, detail: 1)
+    }
+
+    /// Draw timing since the last call (see `X11DrawStats`).
+    public func debugDrawStats() -> String {
+        guard let manager else { return "no server" }
+        defer { manager.drawStats = X11DrawStats() }
+        return manager.drawStats.summary
     }
 
     /// Asks a window to close, as the title-bar button does.

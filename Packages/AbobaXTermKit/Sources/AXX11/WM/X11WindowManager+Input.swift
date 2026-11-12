@@ -70,6 +70,26 @@ extension X11WindowManager: X11SurfaceInput {
     func performShortcut(macKey: UInt16, in window: X11Window) -> Bool {
         guard let keysym = keyboard.shortcutKeysym(forMacKey: macKey),
               let action = X11Shortcut.action(forKeysym: keysym, style: window.properties.shortcutStyle) else { return false }
+        perform(action, macKey: macKey)
+        return true
+    }
+
+    func surface(_ view: X11SurfaceView, canPerform command: X11EditCommand) -> Bool {
+        guard let window = windows[view.windowID] else { return false }
+        return X11Shortcut.action(for: command, style: window.properties.shortcutStyle) != nil
+            && keyboard.macKey(typingLatin: command.keysym) != nil
+    }
+
+    /// An item of the Edit menu, chosen with the mouse: works whether or not
+    /// Command shortcuts are being translated.
+    func surface(_ view: X11SurfaceView, perform command: X11EditCommand) {
+        guard let window = windows[view.windowID],
+              let action = X11Shortcut.action(for: command, style: window.properties.shortcutStyle),
+              let macKey = keyboard.macKey(typingLatin: command.keysym) else { return }
+        perform(action, macKey: macKey)
+    }
+
+    private func perform(_ action: X11ShortcutAction, macKey: UInt16) {
         switch action {
         case .control(let shift):
             offerPasteboard()
@@ -83,13 +103,16 @@ extension X11WindowManager: X11SurfaceInput {
         case .ignore:
             break
         }
-        return true
     }
 
     /// `point` is in X pixels relative to the window's top-left corner.
     func movePointer(to point: CGPoint, in window: X11Window) {
-        let x = window.geometry.x + window.geometry.border + Int(point.x)
-        let y = window.geometry.y + window.geometry.border + Int(point.y)
+        var x = window.geometry.x + window.geometry.border + Int(point.x)
+        var y = window.geometry.y + window.geometry.border + Int(point.y)
+        if bringRoot(under: (x, y), in: window) {
+            x = window.geometry.x + window.geometry.border + Int(point.x)
+            y = window.geometry.y + window.geometry.border + Int(point.y)
+        }
         if let pointer, pointer.x == x, pointer.y == y { return }
         pointer = (x, y)
         connection.fakeInput(ext, .motion, x: x, y: y)

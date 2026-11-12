@@ -52,6 +52,7 @@ enum XAtom: String, CaseIterable, Sendable {
     case netFrameExtents = "_NET_FRAME_EXTENTS"
     case netRequestFrameExtents = "_NET_REQUEST_FRAME_EXTENTS"
     case netWMName = "_NET_WM_NAME"
+    case netWMIcon = "_NET_WM_ICON"
     case netWMPing = "_NET_WM_PING"
     case netWMDesktop = "_NET_WM_DESKTOP"
     case netWMMoveResize = "_NET_WM_MOVERESIZE"

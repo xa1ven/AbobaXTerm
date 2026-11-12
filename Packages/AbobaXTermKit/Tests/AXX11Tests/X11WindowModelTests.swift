@@ -95,6 +95,37 @@ import Testing
         #expect(retina.contentRect(for: XGeometry(x: 200, y: 100, width: 800, height: 600)) == CGRect(x: 100, y: 550, width: 400, height: 300))
     }
 
+    @Test func rootMovesOverWindowsOnOtherScreens() {
+        // Root as large as a laptop screen; a monitor to its right was connected later.
+        let desktop = X11Desktop(frame: CGRect(x: 0, y: 0, width: 1440, height: 900), scale: 2)
+        #expect(desktop.reaches(CGRect(x: 100, y: 100, width: 800, height: 600)))
+        let far = CGRect(x: 2000, y: 300, width: 800, height: 600)
+        #expect(!desktop.reaches(far))
+
+        let moved = desktop.recentered(on: far)
+        #expect(moved.frame.size == desktop.frame.size)
+        #expect(moved.pixelWidth == desktop.pixelWidth)
+        #expect(moved.reaches(far))
+        #expect(moved.frame.midX == far.midX && moved.frame.midY == far.midY)
+        let g = moved.geometry(forContentRect: far)
+        #expect(g.x == 640 && g.y == 300 && g.width == 1600 && g.height == 1200)
+
+        // A window larger than the root: its top-left corner is what gets covered.
+        let huge = CGRect(x: 2000, y: -200, width: 2560, height: 1400)
+        let over = desktop.recentered(on: huge)
+        #expect(over.reaches(huge))
+        #expect(over.geometry(forContentRect: huge).x == 0 && over.geometry(forContentRect: huge).y == 0)
+    }
+
+    @Test @MainActor func coreCursorsAreNotShrunkByTheScale() {
+        // The 10x16 arrow of the core cursor font, as the server reports it.
+        #expect(X11CursorMapper.pixelsPerPoint(name: "", width: 10, height: 16, scale: 2) == 1)
+        // Theme cursors are drawn at Xcursor.size = 24 * scale; custom toolkit cursors too.
+        #expect(X11CursorMapper.pixelsPerPoint(name: "wait", width: 48, height: 48, scale: 2) == 2)
+        #expect(X11CursorMapper.pixelsPerPoint(name: "", width: 48, height: 48, scale: 2) == 2)
+        #expect(X11CursorMapper.pixelsPerPoint(name: "", width: 10, height: 16, scale: 1) == 1)
+    }
+
     @Test func keysymsForCommonCharacters() {
         #expect(X11Keysym.from("a") == 0x61)
         #expect(X11Keysym.from("é") == 0xE9)
@@ -179,5 +210,38 @@ import Testing
         #expect(X11Shortcut.action(forKeysym: c, style: gnome) == .control(shift: true))
         #expect(X11Shortcut.action(forKeysym: z, style: gnome) == .ignore)
         #expect(X11ShortcutStyle(instanceName: nil, className: nil) == .standard)
+    }
+
+    @Test func editMenuFollowsTheProgram() {
+        // Every item works in a regular program.
+        for command in X11EditCommand.allCases {
+            #expect(X11Shortcut.action(for: command, style: .standard) == .control(shift: false))
+        }
+        // Terminals: only Copy and Paste; the rest would send a control character to the shell.
+        #expect(X11Shortcut.action(for: .copy, style: .terminal) == .control(shift: true))
+        #expect(X11Shortcut.action(for: .paste, style: .selectionTerminal) == .pasteSelection)
+        #expect(X11Shortcut.action(for: .copy, style: .selectionTerminal) == .copySelection)
+        for command in [X11EditCommand.undo, .cut, .selectAll] {
+            #expect(X11Shortcut.action(for: command, style: .terminal) == nil)
+            #expect(X11Shortcut.action(for: command, style: .selectionTerminal) == nil)
+        }
+    }
+
+    @Test func iconIsTheLargestCompleteImage() {
+        func image(_ side: UInt32, _ pixel: UInt32) -> [UInt32] { [side, side] + [UInt32](repeating: pixel, count: Int(side * side)) }
+        // 16, 48 and 32 pixels, in the order programs happen to list them.
+        let icon = X11Icon.best(in: image(16, 1) + image(48, 2) + image(32, 3))
+        #expect(icon?.width == 48 && icon?.height == 48 && icon?.pixels.first == 2)
+        // A last image cut off by the read limit is skipped, not half-used.
+        let cut = Array((image(16, 1) + image(64, 2)).dropLast(10))
+        #expect(X11Icon.best(in: cut)?.width == 16)
+        // Nonsense sizes do not crash or allocate.
+        #expect(X11Icon.best(in: [0xFFFF_FFFF, 0xFFFF_FFFF, 1]) == nil)
+        #expect(X11Icon.best(in: [0, 0]) == nil && X11Icon.best(in: []) == nil)
+
+        // Half-transparent red comes out premultiplied, in BGRA byte order.
+        let red = X11Icon(width: 1, height: 1, pixels: [0x80FF_0000]).makeImage()
+        let bytes = red?.dataProvider?.data.map { [UInt8]($0 as Data) }
+        #expect(bytes == [0, 0, 0x80, 0x80])
     }
 }

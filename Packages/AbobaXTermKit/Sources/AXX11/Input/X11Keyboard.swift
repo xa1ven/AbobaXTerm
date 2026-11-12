@@ -226,6 +226,15 @@ final class X11Keyboard {
         return row < uploaded.count ? uploaded[row] : nil
     }
 
+    /// Mac key that types `keysym` in the Latin layout (for menu commands, which carry no key).
+    func macKey(typingLatin keysym: UInt32) -> UInt16? {
+        X11Keycode.evdev.keys.sorted().first { key in
+            guard let code = X11Keycode.forMacKey(key) else { return false }
+            let row = Int(code - X11Keycode.first) * 4
+            return row < uploaded.count && uploaded[row] == keysym
+        }
+    }
+
     /// Taps a key with Control and/or Shift held and Super out of the way.
     func sendChord(macKey: UInt16, control: Bool, shift: Bool) {
         guard let code = X11Keycode.forMacKey(macKey) else { return }

@@ -13,7 +13,8 @@ private let debugSessionID = UUID(uuidString: "D0D0D0D0-0000-0000-0000-000000000
 ///     AbobaXTerm.app/Contents/MacOS/AbobaXTerm
 ///
 /// Steps: home, local, editor, editor-auth, editor-advanced, editor-org,
-/// settings, dark, light (dark/light change the saved preference). The app exits after the last step.
+/// settings, dark, light (dark/light change the saved preference), sidebar-anim
+/// (collapses and expands the sidebar, logs its frame over time to sidebar-anim.txt). The app exits after the last step.
 @MainActor
 enum DebugSnapshot {
     static func runIfRequested(_ model: AppModel, openSettings: @escaping () -> Void) {
@@ -100,6 +101,44 @@ enum DebugSnapshot {
                 }
                 try? await Task.sleep(for: .seconds(2))
                 model.selectedTab?.terminalView.send(txt: "echo DISPLAY=$DISPLAY; \(command) &\r")
+            }
+        case "sidebar-anim":
+            // Collapses, then expands the sidebar and logs its geometry per frame.
+            guard let dir = ProcessInfo.processInfo.environment["ABX_SNAPSHOT_DIR"] else { return }
+            func findSplit(_ v: NSView) -> NSSplitView? {
+                if let s = v as? NSSplitView { return s }
+                for sub in v.subviews { if let s = findSplit(sub) { return s } }
+                return nil
+            }
+            guard let root = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil })?.contentView?.superview,
+                  let split = findSplit(root) else { return }
+            var lines: [String] = []
+            let start = CACurrentMediaTime()
+            var toggles = 0
+            func toggle() {
+                toggles += 1
+                lines.append("TOGGLE \(toggles)")
+                if let controller = split.delegate as? NSSplitViewController {
+                    controller.toggleSidebar(nil)
+                } else {
+                    lines.append("NO CONTROLLER \(String(describing: split.delegate))")
+                }
+            }
+            toggle()
+            Task { @MainActor in
+                while true {
+                    let t = (CACurrentMediaTime() - start) * 1000
+                    let frames = split.arrangedSubviews.map {
+                        let f = $0.convert($0.bounds, to: nil)
+                        let p = $0.layer?.presentation()?.frame ?? .zero
+                        return String(format: "%.0f+%.0f(p%.0f+%.0f)", f.minX, f.width, p.minX, p.width)
+                    }
+                    lines.append(String(format: "%6.1f ", t) + frames.joined(separator: " "))
+                    if toggles == 1, t > 650 { toggle() }
+                    if t > 1350 { break }
+                    try? await Task.sleep(for: .milliseconds(4))
+                }
+                try? lines.joined(separator: "\n").write(toFile: dir + "/sidebar-anim.txt", atomically: true, encoding: .utf8)
             }
         case "wait":
             break

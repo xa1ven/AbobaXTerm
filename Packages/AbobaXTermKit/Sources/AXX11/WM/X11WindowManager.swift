@@ -28,10 +28,14 @@ final class X11WindowManager {
     var pointer: (x: Int, y: Int)?
     var scrollRemainder = CGSize.zero
     var cursorSerial: UInt32 = 0
+    var drawStats = X11DrawStats()
     var clipboard = X11ClipboardState()
     /// The pasteboard mirrored to the X clipboard (tests use a private one).
     var pasteboard = NSPasteboard.general
     var currentCursor: NSCursor = .arrow
+    var publishedWorkarea: [UInt32] = []
+    /// The root no longer lies where it did at startup (see `moveRoot`).
+    var rootHasMoved = false
 
     /// Invisible window owned by the manager: EWMH check window, selection owner.
     var helperWindow: UInt32 = 0
@@ -65,7 +69,7 @@ final class X11WindowManager {
         let supported: [XAtom] = [
             .netSupported, .netSupportingWMCheck, .netActiveWindow, .netClientList, .netCloseWindow,
             .netWorkarea, .netNumberOfDesktops, .netCurrentDesktop, .netDesktopGeometry, .netDesktopViewport,
-            .netFrameExtents, .netRequestFrameExtents, .netWMName, .netWMState, .netWMStateModal, .netWMStateFocused,
+            .netFrameExtents, .netRequestFrameExtents, .netWMName, .netWMIcon, .netWMState, .netWMStateModal, .netWMStateFocused,
             .netWMStateHidden, .netWMWindowType, .netWMWindowTypeNormal, .netWMWindowTypeDialog,
             .netWMWindowTypeUtility, .netWMWindowTypeSplash, .netWMWindowTypeMenu, .netWMWindowTypeDropdownMenu,
             .netWMWindowTypePopupMenu, .netWMWindowTypeTooltip, .netWMWindowTypeNotification, .netWMWindowTypeCombo,
@@ -80,8 +84,12 @@ final class X11WindowManager {
         publishDesktop()
         publishSettings()
 
-        // Plain arrow instead of the server's default "X" cursor.
-        c.setWindowCursor(root, cursor: c.createFontCursor(glyph: 68))
+        // Plain arrow instead of the server's default "X" cursor. It is named so that
+        // the pointer over a window without a cursor of its own maps to the Mac arrow
+        // rather than to this 16-pixel bitmap.
+        let arrow = c.createFontCursor(glyph: 68)
+        c.xfixesSetCursorName(ext, arrow, name: "left_ptr")
+        c.setWindowCursor(root, cursor: arrow)
         c.xfixesSelectCursorInput(ext, root)
         startClipboard()
         await keyboard.install()
@@ -100,10 +108,21 @@ final class X11WindowManager {
     func publishDesktop() {
         let size = [UInt32(desktop.pixelWidth), UInt32(desktop.pixelHeight)]
         connection.changeProperty(root, atoms[.netDesktopGeometry], type: atoms[.cardinal], longs: size)
-        let visible = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? desktop.frame
-        let area = desktop.xRect(for: visible.intersection(desktop.frame))
-        connection.changeProperty(root, atoms[.netWorkarea], type: atoms[.cardinal],
-                                  longs: [area.x, area.y, area.width, area.height].map { UInt32(max(0, $0)) })
+        publishWorkarea()
+    }
+
+    /// X has one work area for the whole root, and toolkits keep their menus
+    /// and tooltips inside it: it is the free area of the screen the user is
+    /// working on (the one with the active X window).
+    func publishWorkarea() {
+        let active = focusedWindow.flatMap { windows[$0]?.host?.screen }
+        let visible = (active ?? NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? desktop.frame
+        let free = visible.intersection(desktop.frame)
+        let area = desktop.xRect(for: free.isEmpty ? desktop.frame : free)
+        let longs = [area.x, area.y, area.width, area.height].map { UInt32(max(0, $0)) }
+        guard longs != publishedWorkarea else { return }
+        publishedWorkarea = longs
+        connection.changeProperty(root, atoms[.netWorkarea], type: atoms[.cardinal], longs: longs)
     }
 
     /// Tells clients the UI scale and font settings (XSETTINGS manager + X resources).
@@ -187,7 +206,12 @@ final class X11WindowManager {
                 await helperPropertyChanged(atom, deleted: deleted)
                 return
             }
-            guard let window = windows[id], let known = atoms.known(atom), X11WindowProperties.tracked.contains(known) else { return }
+            guard let window = windows[id], let known = atoms.known(atom) else { return }
+            if known == .netWMIcon {
+                await reloadIcon(of: window)
+                return
+            }
+            guard X11WindowProperties.tracked.contains(known) else { return }
             await reloadProperty(known, of: window)
 
         case .clientMessage(let id, let type, _, let data):
@@ -309,6 +333,9 @@ final class X11WindowManager {
         var overrideRedirect: Bool
         var hostFrame: CGRect?
         var png: Data?
+        /// The program's icon and what the Dock would show for the minimized window.
+        var icon: Data?
+        var dockTile: Data?
     }
 
     /// State and pixels of every tracked window, bottom-most first.
@@ -320,7 +347,9 @@ final class X11WindowManager {
             }
             return Snapshot(id: window.id, title: window.properties.title, geometry: window.geometry,
                             isMapped: window.isMapped, overrideRedirect: window.overrideRedirect,
-                            hostFrame: window.host?.frame, png: png)
+                            hostFrame: window.host?.frame, png: png,
+                            icon: includePixels ? window.icon.flatMap(Self.png) : nil,
+                            dockTile: includePixels ? dockTileView(for: window, size: CGSize(width: 128, height: 128)).flatMap(Self.png) : nil)
         }
     }
 }

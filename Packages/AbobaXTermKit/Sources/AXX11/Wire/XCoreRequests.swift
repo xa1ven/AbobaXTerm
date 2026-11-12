@@ -237,13 +237,16 @@ extension XConnection {
     }
 
     /// ZPixmap contents of a rectangle; 4 bytes per pixel (BGRX / BGRA) for depth 24 and 32.
+    /// The pixels of `rect`. The result is the whole reply: pixels start at `imageHeader`.
     func image(_ drawable: UInt32, _ rect: XRect) async throws -> [UInt8] {
         let r = XRequest(73, 2)
         r.u32(drawable).i16(Int16(clamping: rect.x)).i16(Int16(clamping: rect.y))
         r.u16(UInt16(clamping: rect.width)).u16(UInt16(clamping: rect.height)).u32(0xFFFF_FFFF)
-        let b = try await reply(r)
-        return Array(b.dropFirst(32))
+        return try await reply(r)
     }
+
+    /// Bytes before the pixels in what `image` returns.
+    static let imageHeader = 32
 
     // MARK: Keyboard and cursor
 

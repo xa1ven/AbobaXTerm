@@ -46,7 +46,30 @@ enum X11ShortcutAction: Equatable, Sendable {
     case ignore
 }
 
+/// Items of the app's Edit menu that an X window answers.
+enum X11EditCommand: CaseIterable, Sendable {
+    case undo, cut, copy, paste, selectAll
+
+    /// Keysym of the letter whose Command shortcut does the same.
+    var keysym: UInt32 {
+        switch self {
+        case .undo: 0x7A
+        case .cut: 0x78
+        case .copy: 0x63
+        case .paste: 0x76
+        case .selectAll: 0x61
+        }
+    }
+}
+
 enum X11Shortcut {
+    /// What an Edit menu item does in a program of this style; nil when the
+    /// item has no safe equivalent there (it is shown disabled).
+    static func action(for command: X11EditCommand, style: X11ShortcutStyle) -> X11ShortcutAction? {
+        let action = action(forKeysym: command.keysym, style: style)
+        return action == .ignore ? nil : action
+    }
+
     /// The action for Command plus the key that types `keysym` in the Latin
     /// layout, or nil when the key should go through as Super+key.
     static func action(forKeysym keysym: UInt32, style: X11ShortcutStyle) -> X11ShortcutAction? {
