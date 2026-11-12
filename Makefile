@@ -10,7 +10,7 @@ VERSION     := $(shell sed -n 's/.*MARKETING_VERSION: "\(.*\)"/\1/p' project.yml
 DIST        := build/dist
 DMG         := $(DIST)/AbobaXTerm-$(VERSION).dmg
 
-.PHONY: all project build test run clean open xserver dist
+.PHONY: all project build test run clean open xserver dist icon
 
 all: build
 
@@ -29,19 +29,20 @@ build: project
 	xcodebuild -project AbobaXTerm.xcodeproj -scheme $(SCHEME) -configuration Debug \
 		-derivedDataPath $(DERIVED) -skipPackagePluginValidation -quiet build
 
-# Installable build: Release app in a disk image with a shortcut to /Applications.
+# Installable build: Release app in a disk image with a shortcut to /Applications
+# (window layout and background: Scripts/make-dmg.sh).
 # Apple Silicon only (the bundled X server is arm64). Ad-hoc signed, not notarized:
 # a downloaded copy has to be allowed once in System Settings > Privacy & Security.
 dist: project
 	xcodebuild -project AbobaXTerm.xcodeproj -scheme $(SCHEME) -configuration Release \
 		-derivedDataPath $(DERIVED) -skipPackagePluginValidation -quiet ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build
-	rm -rf $(DIST) && mkdir -p $(DIST)/image
-	ditto $(DERIVED)/Build/Products/Release/AbobaXTerm.app $(DIST)/image/AbobaXTerm.app
-	codesign --verify --deep --strict $(DIST)/image/AbobaXTerm.app
-	ln -s /Applications $(DIST)/image/Applications
-	hdiutil create -quiet -volname AbobaXTerm -srcfolder $(DIST)/image -ov -format UDZO $(DMG)
-	rm -rf $(DIST)/image
-	@echo "Created $(DMG)"
+	codesign --verify --deep --strict $(DERIVED)/Build/Products/Release/AbobaXTerm.app
+	rm -rf $(DIST) && mkdir -p $(DIST)
+	Scripts/make-dmg.sh $(DERIVED)/Build/Products/Release/AbobaXTerm.app $(DMG)
+
+# App icon: all sizes of the AppIcon set from Scripts/art/AppIcon.svg.
+icon:
+	Scripts/make-icon.sh
 
 test:
 	cd $(PACKAGE_DIR) && swift test
