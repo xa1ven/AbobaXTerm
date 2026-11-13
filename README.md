@@ -55,6 +55,15 @@ Packages/AbobaXTermKit/      all logic, as a local Swift package
 - Every tab runs `/usr/bin/ssh` in a PTY, so `~/.ssh/config`, ssh-agent and ProxyJump work as usual.
 - `ControlMaster=auto` with sockets in `/tmp/abx-<uid>/` (Unix socket paths are limited to 104 bytes).
   Masters are closed when the app quits.
+- A session summary is printed once ssh has signed in: the text is written to
+  `/tmp/abx-<uid>/banner-*.txt` and ssh shows it with `LocalCommand` (`cat`), before anything the
+  server says. A mux client runs no `LocalCommand`, and a `LocalCommand` of the user must not be
+  replaced, so in both cases the tab prints the summary itself before starting ssh.
+- A local tab starts with a card (`LocalBanner` in AXSSH): shell, system OpenSSH and agent keys,
+  the app's shortcuts and a note about the app. The address in it is an OSC 8 link, opened with ⌘-click.
+- Paste goes through `PastePolicy` (AXTerminal): text with a line break opens an editor sheet,
+  and `PasteSanitizer` turns chat-app typography (curly quotes, long dashes) back into ASCII.
+  Full-screen programs (alternate screen) get several lines without the sheet.
 - The file panel waits for the master (`ssh -O check`), then opens the `sftp` subsystem as an extra
   channel of it (`ControlMaster=no`, `BatchMode=yes`), so it never authenticates separately.
   The SFTP client is our own (AXSFTP): requests are pipelined, 16 × 64 KiB in flight.

@@ -321,6 +321,79 @@ enum Russian {
             "«%@» использует X11 forwarding, но встроенный X-сервер отсутствует в этой копии AbobaXTerm. Пересоберите приложение, чтобы вернуть его.",
         "“%@” was changed on the server": "«%@» был изменён на сервере",
         "⌘C, ⌘V, ⌘X, ⌘A and ⌘Z in X11 windows": "⌘C, ⌘V, ⌘X, ⌘A и ⌘Z в окнах X11",
+
+        // Paste review
+        "Paste": "Вставить",
+        "Paste several lines?": "Вставить несколько строк?",
+        "Paste with typography fixed?": "Вставить с исправленной типографикой?",
+        "Every line runs as soon as it is pasted. Check the text, edit it here if needed.":
+            "Каждая строка выполнится сразу после вставки. Проверьте текст, при необходимости исправьте его здесь.",
+        "Quotes, dashes or spaces restyled by a chat app were turned back into plain ones (green). An orange dash could not be guessed: check it.":
+            "Кавычки, тире и пробелы, которые изменил мессенджер, возвращены к обычным (зелёные). Оранжевое тире угадать не удалось: проверьте его.",
+        "Fixed": "Исправлено",
+        "Original": "Оригинал",
+        "Do not ask about several lines": "Не спрашивать про несколько строк",
+        "Review several lines before pasting": "Проверять несколько строк перед вставкой",
+        "Opens a small editor instead of running every line at once. Not shown in full-screen programs such as vim.":
+            "Открывает небольшой редактор, а не выполняет все строки сразу. В полноэкранных программах вроде vim не показывается.",
+        "Typography in pasted commands": "Типографика во вставляемых командах",
+        "Chat apps turn \" into « », -- into — and so on, which breaks commands. AbobaXTerm can turn them back.":
+            "Мессенджеры превращают \" в « », -- в — и так далее, и команды ломаются. AbobaXTerm может вернуть всё обратно.",
+        "Ask": "Спрашивать",
+        "Fix silently": "Исправлять молча",
+        "Leave as is": "Не трогать",
+
+        // Session summary in the terminal
+        "Session summary on connect": "Сводка о сессии при подключении",
+        "A short card in the terminal: where the session goes, how it signed in and what is active.":
+            "Короткая карточка в терминале: куда идёт сессия, как выполнен вход и что включено.",
+        "port %@": "порт %@",
+        "Route": "Маршрут",
+        "through %@": "через %@",
+        "direct": "напрямую",
+        "Sign-in": "Вход",
+        "password": "пароль",
+        "key %@": "ключ %@",
+        "ssh-agent or default keys": "ssh-agent или ключи по умолчанию",
+        "shared with a tab that is already open": "общее с уже открытой вкладкой",
+        "Compression": "Сжатие",
+        "on": "вкл",
+        "off": "выкл",
+        "Files": "Файлы",
+        "SFTP panel on the left": "панель SFTP слева",
+        "windows open on this Mac": "окна открываются на этом Mac",
+        "no X server, windows will not open": "нет X-сервера, окна не откроются",
+        "Monitoring": "Мониторинг",
+        "status bar below": "строка состояния внизу",
+        "Last visit": "Прошлый вход",
+        "first time": "первый раз",
+
+        // Card at the top of a local terminal
+        "Welcome card in local terminals": "Карточка в локальных терминалах",
+        "Shell, ssh and the keyboard shortcuts of AbobaXTerm at the top of every local tab.":
+            "Шелл, ssh и горячие клавиши AbobaXTerm в начале каждой локальной вкладки.",
+        "SSH client, SFTP browser and X server": "SSH-клиент, SFTP-браузер и X-сервер",
+        "Shell": "Шелл",
+        "%@ (login), TERM %@": "%@ (login), TERM %@",
+        "no keys in agent": "в агенте нет ключей",
+        "ssh-agent is not running": "ssh-agent не запущен",
+        "Tabs": "Вкладки",
+        "local terminal": "локальный терминал",
+        "new session": "новая сессия",
+        "close": "закрыть",
+        "go to tab": "перейти ко вкладке",
+        "previous / next": "предыдущая / следующая",
+        "duplicate": "дублировать",
+        "restart shell": "перезапустить шелл",
+        "View": "Вид",
+        "sessions / SFTP": "сессии / SFTP",
+        "text size": "размер текста",
+        "Links": "Ссылки",
+        "⌘-click opens a link": "⌘-клик открывает ссылку",
+        "Important:": "Важно:",
+        "AbobaXTerm is a fan-made MobaXterm-inspired terminal for macOS, not affiliated with Mobatek. The source code is open and it is free for personal use; it is not for sale.":
+            "AbobaXTerm — фанатский аналог MobaXterm для macOS, с Mobatek не связан. Исходный код открыт, для личного использования бесплатно; не для продажи.",
+        "More information:": "Подробнее:",
     ]
 
     /// `LN` noun forms, keyed by the English "other" phrase: [one, few, many].
@@ -330,10 +403,12 @@ enum Russian {
             "%@ соединения открыто и будут закрыты.",
             "%@ соединений открыто и будут закрыты.",
         ],
+        "%@ lines": ["%@ строка", "%@ строки", "%@ строк"],
         "%@ windows": ["%@ окно", "%@ окна", "%@ окон"],
         "%@ sessions": ["%@ сессия", "%@ сессии", "%@ сессий"],
         "%@ minutes": ["%@ минута", "%@ минуты", "%@ минут"],
         "%@ seconds": ["%@ секунда", "%@ секунды", "%@ секунд"],
+        "%@ keys in agent": ["%@ ключ в агенте", "%@ ключа в агенте", "%@ ключей в агенте"],
         "%@ cores": ["%@ ядро", "%@ ядра", "%@ ядер"],
     ]
 }

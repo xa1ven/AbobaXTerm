@@ -4,6 +4,15 @@ import AXModels
 import AXSSH
 import Observation
 
+/// What the card of a local tab needs from the app.
+public struct LocalBannerOptions: Sendable {
+    public var appVersion: String
+
+    public init(appVersion: String) {
+        self.appVersion = appVersion
+    }
+}
+
 /// One terminal tab: ssh or a local login shell running in a PTY inside a SwiftTerm view.
 @MainActor
 @Observable
@@ -38,6 +47,8 @@ public final class TerminalTab: Identifiable {
     @ObservationIgnored private var launchTask: Task<Void, Never>?
     /// Called once ssh has been started (used to update "last connected").
     @ObservationIgnored public var onLaunched: ((Session) -> Void)?
+    /// Card printed above the shell of a local tab; nil prints nothing.
+    @ObservationIgnored public var localBanner: LocalBannerOptions?
 
     public init(target: Target, launcher: SSHLauncher) {
         self.target = target
@@ -91,6 +102,27 @@ public final class TerminalTab: Identifiable {
     }
 
     private func startLocalShell() {
+        guard let localBanner else {
+            launchLocalShell()
+            return
+        }
+        // The card is drawn for the real width of the terminal, so wait until
+        // the view is in its window; meanwhile look at the shell and ssh.
+        state = .connecting
+        launchTask = Task { [weak self] in
+            let facts = await LocalBanner.gatherFacts()
+            for _ in 0..<20 where self?.terminalView.window == nil {
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+            await Task.yield()
+            guard let self, self.state == .connecting else { return }
+            let banner = LocalBanner(appVersion: localBanner.appVersion, facts: facts)
+            self.terminalView.feed(text: banner.render(columns: self.terminalView.terminalDimensions.cols))
+            self.launchLocalShell()
+        }
+    }
+
+    private func launchLocalShell() {
         let shell = TerminalEnvironment.userShell
         let name = (shell as NSString).lastPathComponent
         commandLine = shell
@@ -109,16 +141,22 @@ public final class TerminalTab: Identifiable {
 
         launchTask = Task { [weak self, launcher] in
             do {
-                let spec = try await launcher.prepare(session, isSaved: isSaved)
+                var spec = try await launcher.prepare(session, isSaved: isSaved)
                 guard let self, self.state == .connecting else {
                     launcher.finish(spec)
                     return
                 }
-                self.spec = spec
                 self.commandLine = spec.commandLine
                 for notice in spec.notices {
                     self.terminalView.feed(text: "\u{1B}[33m\(notice)\u{1B}[0m\r\n")
                 }
+                if let banner = spec.banner {
+                    let text = banner.render(columns: self.terminalView.terminalDimensions.cols)
+                    if spec.bannerTiming == .beforeConnecting || (try? launcher.installBanner(text, in: &spec)) == nil {
+                        self.terminalView.feed(text: text)
+                    }
+                }
+                self.spec = spec
                 self.terminalView.startProcess(
                     executable: spec.executable,
                     args: spec.arguments,

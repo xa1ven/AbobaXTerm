@@ -7,6 +7,9 @@ public struct ResolvedSSHConfig: Sendable, Equatable {
     public var user: String?
     public var port: Int?
     public var proxyJump: String?
+    public var compression: Bool?
+    /// The user's own `LocalCommand`, when ~/.ssh/config or the session sets one.
+    public var localCommand: String?
 
     public init(hostName: String? = nil, user: String? = nil, port: Int? = nil, proxyJump: String? = nil) {
         self.hostName = hostName
@@ -27,6 +30,8 @@ public struct ResolvedSSHConfig: Sendable, Equatable {
             case "user": result.user = value
             case "port": result.port = Int(value)
             case "proxyjump": result.proxyJump = value == "none" ? nil : value
+            case "compression": result.compression = value == "yes"
+            case "localcommand": result.localCommand = value == "none" ? nil : value
             default: break
             }
         }

@@ -22,6 +22,15 @@ public final class AXTerminalView: TerminalView {
 
     public weak var processDelegate: AXTerminalViewDelegate?
     public let highlighter = OutputHighlighter()
+    public var pasteSettings = PasteSettings()
+    /// Shows a paste to the user before it is sent. The completion gets the
+    /// (possibly edited) text to send, or nil when the user cancelled.
+    /// Without a handler every paste goes straight to the terminal.
+    public var pasteReviewHandler: ((PasteReview, @escaping @MainActor (String?) -> Void) -> Void)?
+
+    /// Gets a link the user ⌘-clicked, already checked by SwiftTerm.
+    /// Without a handler the system opens it.
+    public var linkOpenHandler: ((URL) -> Void)?
 
     private var process: LocalProcess!
     private var bridge: ProcessBridge!
@@ -106,6 +115,53 @@ public final class AXTerminalView: TerminalView {
         if process.running { _ = process.updateWindowSize(&size) }
     }
 
+    // MARK: Paste
+
+    public override func paste(_ sender: Any) {
+        guard let text = NSPasteboard.general.string(forType: .string), offerPaste(text) else {
+            super.paste(sender)
+            return
+        }
+    }
+
+    /// Applies the paste settings to `text`: sends a corrected copy or asks
+    /// the user first. Returns false when the text needs neither, so the
+    /// caller pastes it the usual way.
+    @discardableResult
+    public func offerPaste(_ text: String) -> Bool {
+        guard pasteReviewHandler != nil, process.running else { return false }
+        let alternate = terminalInputStateSnapshot()?.isAlternateBuffer ?? false
+        switch PastePolicy.decide(text: text, settings: pasteSettings, isAlternateScreen: alternate) {
+        case .passThrough:
+            return false
+        case .send(let fixed):
+            pasteText(fixed)
+        case .review(let review):
+            pasteReviewHandler?(review) { [weak self] edited in
+                guard let self, let edited, !edited.isEmpty else { return }
+                self.pasteText(edited)
+            }
+        }
+        return true
+    }
+
+    #if DEBUG
+    /// Center of the cell `offset` characters into the first `text` on the
+    /// screen, in view coordinates (debug snapshots click there).
+    public func pointOnScreen(of text: String, offset: Int) -> NSPoint? {
+        // Rows of the buffer; the same as rows of the screen until it scrolls.
+        let dims = terminalDimensions
+        let lines = String(decoding: getBufferAsData(), as: UTF8.self).components(separatedBy: "\n")
+        for (row, line) in lines.enumerated() where row < dims.rows {
+            guard let range = line.range(of: text) else { continue }
+            let column = line.distance(from: line.startIndex, to: range.lowerBound) + offset
+            return NSPoint(x: (CGFloat(column) + 0.5) * bounds.width / CGFloat(dims.cols),
+                           y: bounds.height - (CGFloat(row) + 0.5) * bounds.height / CGFloat(dims.rows))
+        }
+        return nil
+    }
+    #endif
+
     // MARK: Appearance
 
     public func setFontSize(_ size: CGFloat) {
@@ -152,6 +208,11 @@ extension AXTerminalView: TerminalViewDelegate {
     }
 
     public func scrolled(source: TerminalView, position: Double) {}
+
+    public func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {
+        guard let url = URL(string: link) else { return }
+        if let linkOpenHandler { linkOpenHandler(url) } else { NSWorkspace.shared.open(url) }
+    }
 
     public func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
 

@@ -1,6 +1,7 @@
 import AXL10n
 import AppKit
 import AXSSH
+import AXTerminal
 import SwiftUI
 
 /// Settings window (⌘,).
@@ -38,9 +39,32 @@ public struct SettingsView: View {
                 }
                 Toggle(L("Highlight output (IPs, URLs, errors…)"), isOn: $model.highlightOutput)
                 LabeledContent(L("Local shell"), value: model.localShellPath)
+                Toggle(isOn: $model.showLocalBanner) {
+                    Text(L("Welcome card in local terminals"))
+                    Text(L("Shell, ssh and the keyboard shortcuts of AbobaXTerm at the top of every local tab."))
+                }
+            }
+
+            Section(L("Paste")) {
+                Toggle(isOn: $model.confirmMultilinePaste) {
+                    Text(L("Review several lines before pasting"))
+                    Text(L("Opens a small editor instead of running every line at once. Not shown in full-screen programs such as vim."))
+                }
+                Picker(selection: $model.pasteTypography) {
+                    Text(L("Ask")).tag(TypographyFix.ask)
+                    Text(L("Fix silently")).tag(TypographyFix.automatic)
+                    Text(L("Leave as is")).tag(TypographyFix.off)
+                } label: {
+                    Text(L("Typography in pasted commands"))
+                    Text(L("Chat apps turn \" into « », -- into — and so on, which breaks commands. AbobaXTerm can turn them back."))
+                }
             }
 
             Section(L("SSH")) {
+                Toggle(isOn: $model.showSessionBanner) {
+                    Text(L("Session summary on connect"))
+                    Text(L("A short card in the terminal: where the session goes, how it signed in and what is active."))
+                }
                 Picker(L("Keep connection after last tab closes"), selection: $model.controlPersistMinutes) {
                     ForEach(AppModel.controlPersistChoices, id: \.self) { minutes in
                         Text(LN(minutes, "%@ minute", "%@ minutes")).tag(minutes)

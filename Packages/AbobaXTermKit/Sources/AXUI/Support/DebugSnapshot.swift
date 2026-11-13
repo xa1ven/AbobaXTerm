@@ -14,7 +14,7 @@ private let debugSessionID = UUID(uuidString: "D0D0D0D0-0000-0000-0000-000000000
 ///     AbobaXTerm.app/Contents/MacOS/AbobaXTerm
 ///
 /// Steps: home, local, editor, editor-auth, editor-advanced, editor-org,
-/// settings, sidebar-expand (opens all folders), sidebar-click-N (clicks row N of the sessions list), terminal-focus, monitor-details (the status bar popovers of the selected SSH tab in one window), dark, light (dark/light change the saved preference), sidebar-anim
+/// settings, sidebar-expand (opens all folders), sidebar-click-N (clicks row N of the sessions list), terminal-focus, link-click (⌘-clicks the first https:// address in the selected terminal and writes the link it would open to link-click.txt), monitor-details (the status bar popovers of the selected SSH tab in one window), dark, light (dark/light change the saved preference), sidebar-anim
 /// (collapses and expands the sidebar, logs its frame over time to sidebar-anim.txt). The app exits after the last step.
 @MainActor
 enum DebugSnapshot {
@@ -64,7 +64,7 @@ enum DebugSnapshot {
             model.openLocalTerminal()
             let sample = """
             clear; cat <<'ABX'
-            Last login: Wed Nov 11 00:33:16 2026 from 147.45.178.199
+            Last login: Wed Nov 11 00:33:16 2026 from 203.0.113.10
             To see these additional updates run: apt list --upgradable
             Learn more at https://ubuntu.com/esm
             tcp   LISTEN 0  128   127.0.0.1:6010   0.0.0.0:*   users:(("sshd",pid=72684,fd=7))
@@ -73,7 +73,7 @@ enum DebugSnapshot {
                  Loaded: loaded (/usr/lib/systemd/system/ssh.service; disabled; preset: enabled)
             Nov 11 00:41:35 host sshd[72679]: Invalid user admin from 2.57.122.209 port 43406
             Nov 11 00:41:35 host sshd[72679]: Connection closed by invalid user admin 2.57.122.209 port 43406 [preauth]
-            Nov 11 00:43:37 host sshd[72684]: Accepted publickey for root from 147.45.178.199 port 60792
+            Nov 11 00:43:37 host sshd[72684]: Accepted publickey for root from 203.0.113.10 port 60792
             Nov 11 00:43:37 host sshd[72684]: pam_unix(sshd:session): session opened for user root(uid=0)
             curl: (7) Failed to connect: Connection refused; warning: retrying, error count 3
             ABX
@@ -234,6 +234,45 @@ enum DebugSnapshot {
                 }
             }
         case "terminal-focus": model.focusTerminal()
+        case "paste":
+            // ABX_SNAPSHOT_PASTE_FILE: text offered to the selected terminal as if pasted (the clipboard is not used).
+            guard let path = ProcessInfo.processInfo.environment["ABX_SNAPSHOT_PASTE_FILE"],
+                  let text = try? String(contentsOfFile: path, encoding: .utf8), let tab = model.selectedTab else { return }
+            if !tab.terminalView.offerPaste(text) { tab.terminalView.pasteText(text) }
+        case "paste-original", "paste-accept", "paste-cancel":
+            // Presses a control of the open paste sheet.
+            guard let sheet = NSApp.windows.first(where: { $0.sheetParent != nil }), let root = sheet.contentView else { return }
+            func controls(_ view: NSView) -> [NSControl] {
+                (view as? NSControl).map { [$0] } ?? view.subviews.flatMap(controls)
+            }
+            let all = controls(root)
+            if step == "paste-original", let segments = all.compactMap({ $0 as? NSSegmentedControl }).first {
+                segments.selectedSegment = 1
+                segments.sendAction(segments.action, to: segments.target)
+            } else if step == "paste-accept" {
+                // The real shortcut, ⌘Return, as the window would get it from the keyboard.
+                if let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+                                                windowNumber: sheet.windowNumber, context: nil, characters: "\r",
+                                                charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) {
+                    _ = sheet.performKeyEquivalent(with: event)
+                }
+            } else if let button = all.compactMap({ $0 as? NSButton }).first(where: { $0.identifier?.rawValue == step }) {
+                button.sendAction(button.action, to: button.target)
+            }
+        case "link-click":
+            // A real ⌘-click on the first address on the screen. The link goes
+            // to link-click.txt instead of the browser.
+            guard let view = model.selectedTab?.terminalView, let window = view.window,
+                  let dir = ProcessInfo.processInfo.environment["ABX_SNAPSHOT_DIR"] else { return }
+            view.linkOpenHandler = { try? $0.absoluteString.write(toFile: dir + "/link-click.txt", atomically: true, encoding: .utf8) }
+            guard let local = view.pointOnScreen(of: "https://", offset: 10) else { return }
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                if let event = NSEvent.mouseEvent(with: type, location: view.convert(local, to: nil), modifierFlags: .command,
+                                                  timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                                                  context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                    if type == .leftMouseDown { view.mouseDown(with: event) } else { view.mouseUp(with: event) }
+                }
+            }
         default: break
         }
     }

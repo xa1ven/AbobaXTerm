@@ -83,6 +83,20 @@ public final class AppModel {
             for tab in tabs { tab.terminalView.highlighter.isEnabled = highlightOutput }
         }
     }
+    /// Hold back pasted text of several lines in a small editor.
+    public var confirmMultilinePaste: Bool {
+        didSet {
+            UserDefaults.standard.set(confirmMultilinePaste, forKey: Self.confirmPasteKey)
+            applyPasteSettings()
+        }
+    }
+    /// What to do with curly quotes, long dashes and the like in pasted text.
+    public var pasteTypography: TypographyFix {
+        didSet {
+            UserDefaults.standard.set(pasteTypography.rawValue, forKey: Self.pasteTypographyKey)
+            applyPasteSettings()
+        }
+    }
     /// Render X11 programs at Retina resolution (they are told to draw at 2x).
     public var x11HiDPI: Bool {
         didSet {
@@ -97,9 +111,26 @@ public final class AppModel {
             x11.translatesCommandShortcuts = x11CommandShortcuts
         }
     }
+    /// Summary of the session printed in the terminal when it connects.
+    public var showSessionBanner: Bool {
+        didSet {
+            UserDefaults.standard.set(showSessionBanner, forKey: Self.bannerKey)
+            rebuildLauncher()
+        }
+    }
+    /// Card with shortcuts and facts about this Mac at the top of a local terminal.
+    public var showLocalBanner: Bool {
+        didSet {
+            UserDefaults.standard.set(showLocalBanner, forKey: Self.localBannerKey)
+            for tab in tabs where tab.isLocal { tab.localBanner = localBannerOptions }
+        }
+    }
     /// Status bar with live server statistics under SSH terminals.
     public var monitorEnabled: Bool {
-        didSet { UserDefaults.standard.set(monitorEnabled, forKey: Self.monitorEnabledKey) }
+        didSet {
+            UserDefaults.standard.set(monitorEnabled, forKey: Self.monitorEnabledKey)
+            rebuildLauncher()
+        }
     }
     /// Seconds between two readings of the server's counters.
     public var monitorInterval: Int {
@@ -133,6 +164,10 @@ public final class AppModel {
     private static let appearanceKey = "appearance"
     private static let controlPersistKey = "controlPersistMinutes"
     private static let highlightKey = "highlightOutput"
+    private static let bannerKey = "showSessionBanner"
+    private static let localBannerKey = "showLocalBanner"
+    private static let confirmPasteKey = "confirmMultilinePaste"
+    private static let pasteTypographyKey = "pasteTypography"
     private static let x11HiDPIKey = "x11HiDPI"
     private static let x11ShortcutsKey = "x11CommandShortcuts"
     private static let monitorEnabledKey = "serverMonitorEnabled"
@@ -151,7 +186,13 @@ public final class AppModel {
         self.controlPersistMinutes = persistMinutes
         self.askpassHelperPath = askpassHelperPath
         self.highlightOutput = UserDefaults.standard.object(forKey: Self.highlightKey) as? Bool ?? true
-        self.monitorEnabled = UserDefaults.standard.object(forKey: Self.monitorEnabledKey) as? Bool ?? true
+        let monitorEnabled = UserDefaults.standard.object(forKey: Self.monitorEnabledKey) as? Bool ?? true
+        self.monitorEnabled = monitorEnabled
+        let showSessionBanner = UserDefaults.standard.object(forKey: Self.bannerKey) as? Bool ?? true
+        self.showSessionBanner = showSessionBanner
+        self.showLocalBanner = UserDefaults.standard.object(forKey: Self.localBannerKey) as? Bool ?? true
+        self.confirmMultilinePaste = UserDefaults.standard.object(forKey: Self.confirmPasteKey) as? Bool ?? true
+        self.pasteTypography = TypographyFix(rawValue: UserDefaults.standard.string(forKey: Self.pasteTypographyKey) ?? "") ?? .ask
         let storedInterval = UserDefaults.standard.integer(forKey: Self.monitorIntervalKey)
         self.monitorInterval = Self.monitorIntervalChoices.contains(storedInterval) ? storedInterval : 2
 
@@ -180,7 +221,8 @@ public final class AppModel {
         }
         launcher = SSHLauncher(builder: builder, broker: broker,
                                askpassHelperPath: broker == nil ? nil : askpassHelperPath,
-                               x11: EmbeddedX11Display(service: x11))
+                               x11: EmbeddedX11Display(service: x11),
+                               banner: Self.bannerOptions(show: showSessionBanner, monitoring: monitorEnabled))
     }
 
     /// Deletes askpass sockets left behind by instances that crashed or were killed.
@@ -196,13 +238,30 @@ public final class AppModel {
         }
     }
 
+    private var bannerOptions: BannerOptions? {
+        Self.bannerOptions(show: showSessionBanner, monitoring: monitorEnabled)
+    }
+
+    private static func bannerOptions(show: Bool, monitoring: Bool) -> BannerOptions? {
+        guard show else { return nil }
+        return BannerOptions(appVersion: appVersion, monitoring: monitoring)
+    }
+
+    private static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+
+    private var localBannerOptions: LocalBannerOptions? {
+        showLocalBanner ? LocalBannerOptions(appVersion: Self.appVersion) : nil
+    }
+
     private func rebuildLauncher() {
         let builder = SSHCommandBuilder(controlDirectory: paths.runtimeDirectory.path,
                                         controlPersistSeconds: controlPersistMinutes * 60,
                                         xauthPath: X11Service.xauthLocation(runtimeDirectory: paths.runtimeDirectory))
         launcher = SSHLauncher(builder: builder, broker: broker,
                                askpassHelperPath: broker == nil ? nil : askpassHelperPath,
-                               x11: EmbeddedX11Display(service: x11))
+                               x11: EmbeddedX11Display(service: x11), banner: bannerOptions)
     }
 
     /// Loads the library; safe to call more than once.
@@ -440,6 +499,19 @@ public final class AppModel {
         let tab = TerminalTab(target: target, launcher: launcher)
         tab.terminalView.setFontSize(fontSize)
         tab.terminalView.highlighter.isEnabled = highlightOutput
+        tab.terminalView.pasteSettings = pasteSettings
+        tab.terminalView.pasteReviewHandler = { [weak self, weak tab] review, done in
+            guard let window = tab?.terminalView.window else {
+                done(nil)
+                return
+            }
+            PasteReviewController.present(review, on: window) { outcome in
+                if outcome.stopAsking { self?.confirmMultilinePaste = false }
+                done(outcome.text)
+                if let terminal = tab?.terminalView { window.makeFirstResponder(terminal) }
+            }
+        }
+        if case .local = target { tab.localBanner = localBannerOptions }
         if case .ssh(let session, _) = target {
             usedSocketPrefixes.insert(SSHCommandBuilder.controlSocketName(for: session))
         }
@@ -459,6 +531,14 @@ public final class AppModel {
         tabs.append(tab)
         selectedTabID = tab.id
         tab.connect()
+    }
+
+    private var pasteSettings: PasteSettings {
+        PasteSettings(confirmMultiline: confirmMultilinePaste, typography: pasteTypography)
+    }
+
+    private func applyPasteSettings() {
+        for tab in tabs { tab.terminalView.pasteSettings = pasteSettings }
     }
 
     public func closeTab(_ id: UUID) {

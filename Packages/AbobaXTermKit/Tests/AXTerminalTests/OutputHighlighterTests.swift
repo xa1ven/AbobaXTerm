@@ -18,10 +18,10 @@ import Testing
     }
 
     @Test func colorsIPv4ButNotZeroAddress() {
-        let out = run(["from 147.45.178.199 port 22, listen 0.0.0.0:22\r\n"])
-        #expect(out.contains("\(esc)[95m147.45.178.199\(esc)[39m"))
+        let out = run(["from 203.0.113.10 port 22, listen 0.0.0.0:22\r\n"])
+        #expect(out.contains("\(esc)[95m203.0.113.10\(esc)[39m"))
         #expect(out.contains(" 0.0.0.0:22"))
-        #expect(strip(out) == "from 147.45.178.199 port 22, listen 0.0.0.0:22\r\n")
+        #expect(strip(out) == "from 203.0.113.10 port 22, listen 0.0.0.0:22\r\n")
     }
 
     @Test func ipAtEndOfSentenceAndVersionsAreHandled() {
