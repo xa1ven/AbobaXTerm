@@ -2,7 +2,8 @@
 Любительский порт Мобы на мак
 
 Personal native macOS SSH client: saved sessions, tabbed terminal (SwiftTerm),
-SFTP side panel and a built-in X11 display. Not for distribution.
+SFTP side panel and a built-in X11 display. Fan-made, not affiliated with Mobatek.
+Free for personal use, not for sale: see [LICENSE](LICENSE). Site: https://abobaxterm.site
 
 ## Requirements
 

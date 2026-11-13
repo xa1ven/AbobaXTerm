@@ -42,3 +42,6 @@ id_ed25519*
 
 # Local notes for the AI assistant (not published)
 CLAUDE.md
+
+# Web site: kept on this Mac only (not published), deployed with site/deploy.sh
+site/
