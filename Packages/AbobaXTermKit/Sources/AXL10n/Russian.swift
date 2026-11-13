@@ -149,7 +149,6 @@ enum Russian {
         "New File Inside…": "Новый файл внутри…",
         "New File": "Новый файл",
         "New File…": "Новый файл…",
-        "New Folder (⇧⌘N)": "Новая папка (⇧⌘N)",
         "New Folder Inside…": "Новая папка внутри…",
         "New Folder": "Новая папка",
         "New Folder…": "Новая папка…",
@@ -159,7 +158,6 @@ enum Russian {
         "New Session Here…": "Новая сессия здесь…",
         "New Session": "Новая сессия",
         "New Session…": "Новая сессия…",
-        "New Subfolder": "Новая подпапка",
         "Next Match (↩)": "Следующее совпадение (↩)",
         "No Open Sessions": "Нет открытых сессий",
         "No SFTP Session": "Нет SFTP-сессии",
@@ -213,9 +211,7 @@ enum Russian {
         "Replace %@ items?": "Заменить %@ элементов?",
         "Replace “%@”?": "Заменить «%@»?",
         "Replace": "Заменить",
-        "Restart  ⌘R": "Перезапустить  ⌘R",
         "Restart Shell": "Перезапустить оболочку",
-        "Restart": "Перезапустить",
         "Results (%@)": "Результаты (%@)",
         "Retry": "Повторить",
         "Running for": "Работает",
@@ -241,7 +237,6 @@ enum Russian {
         "Sessions with “X11 forwarding” show programs from the server as windows on this Mac. Nothing else needs to be installed.":
             "Сессии с «X11 forwarding» показывают программы с сервера окнами на этом Mac. Больше ничего ставить не нужно.",
         "Sessions": "Сессии",
-        "Settings (⌘,)": "Настройки (⌘,)",
         "Settings": "Настройки",
         "Sharp rendering on Retina displays": "Чёткая отрисовка на экранах Retina",
         "Shell exited": "Оболочка завершилась",
@@ -259,7 +254,6 @@ enum Russian {
         "Smaller Text": "Мельче текст",
         "Someone or something modified the file after you opened it. Overwrite their changes with yours?":
             "Кто-то или что-то изменило файл после того, как вы его открыли. Заменить эти изменения своими?",
-        "Start Local Terminal": "Открыть локальный терминал",
         "Started": "Запущен",
         "Starting…": "Запуск…",
         "Starts with the first X11 session": "Запускается при первой сессии с X11",
@@ -280,7 +274,6 @@ enum Russian {
         "Theme": "Тема",
         "This can’t be undone.": "Это необратимо.",
         "This looks like a binary file. Download it instead.": "Похоже, это двоичный файл. Скачайте его вместо открытия.",
-        "Toggle Favorite": "Избранное вкл/выкл",
         "Top Level": "Верхний уровень",
         "Total received": "Всего получено",
         "Total sent": "Всего отправлено",
@@ -394,6 +387,35 @@ enum Russian {
         "AbobaXTerm is a fan-made MobaXterm-inspired terminal for macOS, not affiliated with Mobatek. The source code is open and it is free for personal use; it is not for sale.":
             "AbobaXTerm — любительский аналог MobaXterm для macOS, с Mobatek не связан. Исходный код открыт, для личного использования бесплатно; не для продажи.",
         "More information:": "Подробнее:",
+        // Menus, settings panes and icon names (design pass, 2026-11)
+        "AbobaXTerm Website": "Сайт AbobaXTerm",
+        "About AbobaXTerm": "О программе AbobaXTerm",
+        "Build": "Сборка",
+        "Close Window": "Закрыть окно",
+        "Cloud": "Облако",
+        "Desktop Computer": "Настольный компьютер",
+        "Display": "Монитор",
+        "Drive": "Диск",
+        "Duplicate Session": "Дублировать сессию",
+        "Edit Session": "Изменение сессии",
+        "Games": "Игры",
+        "General": "Основные",
+        "Hide Hidden Files": "Не показывать скрытые файлы",
+        "Hide Status Bar": "Скрыть строку состояния",
+        "Home": "Дом",
+        "Internet": "Интернет",
+        "Lab": "Лаборатория",
+        "Laptop": "Ноутбук",
+        "New Folder… (⇧⌘N)": "Новая папка… (⇧⌘N)",
+        "New Subfolder…": "Новая подпапка…",
+        "Office": "Офис",
+        "Processor": "Процессор",
+        "Rename Folder…": "Переименовать папку…",
+        "Restart Shell  ⌘R": "Перезапустить оболочку  ⌘R",
+        "Section": "Раздел",
+        "Security": "Защита",
+        "Server": "Сервер",
+        "Show Status Bar": "Показать строку состояния",
     ]
 
     /// `LN` noun forms, keyed by the English "other" phrase: [one, few, many].
@@ -410,5 +432,6 @@ enum Russian {
         "%@ seconds": ["%@ секунда", "%@ секунды", "%@ секунд"],
         "%@ keys in agent": ["%@ ключ в агенте", "%@ ключа в агенте", "%@ ключей в агенте"],
         "%@ cores": ["%@ ядро", "%@ ядра", "%@ ядер"],
+
     ]
 }

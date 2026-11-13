@@ -90,9 +90,13 @@ struct SidebarTableBridge: NSViewRepresentable {
         }
 
         private func handleClick(windowNumber: Int, at point: NSPoint) {
+            // Hit-test from the window's top view, not from the content view:
+            // the sidebar's search field lives outside the content view, above
+            // the list, and a click on it would otherwise count as a click on
+            // the list's empty area and send the focus back to the terminal.
             guard let window, window.windowNumber == windowNumber,
-                  let contentView = window.contentView,
-                  let hit = contentView.hitTest(contentView.convert(point, from: nil)) else { return }
+                  let root = window.contentView?.superview ?? window.contentView,
+                  let hit = root.hitTest(root.convert(point, from: nil)) else { return }
             var view: NSView? = hit
             while let current = view, !(current is NSTableView) { view = current.superview }
             guard let clicked = view as? NSTableView else { return }

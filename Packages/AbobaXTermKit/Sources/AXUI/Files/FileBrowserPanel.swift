@@ -13,15 +13,21 @@ struct FileBrowserPanel: View {
             FilePathBar(browser: browser)
             if browser.isSearchVisible && browser.status == .ready {
                 FileSearchBar(browser: browser)
+                    .transition(Motion.bar(from: .top))
             }
             Divider()
             content
                 .frame(maxHeight: .infinity)
             if !browser.transfers.items.isEmpty {
-                Divider()
-                TransferListView(queue: browser.transfers)
+                VStack(spacing: 0) {
+                    Divider()
+                    TransferListView(queue: browser.transfers)
+                }
+                .transition(Motion.bar(from: .bottom))
             }
         }
+        .animation(Motion.standard, value: browser.isSearchVisible)
+        .animation(Motion.standard, value: browser.transfers.items.isEmpty)
         .alert(browser.nameRequest?.title ?? "", isPresented: isPresented(\.nameRequest), presenting: browser.nameRequest) { request in
             FileNameField(browser: browser, request: request)
         }
@@ -234,7 +240,7 @@ private struct FileNameField: View {
 
     var body: some View {
         TextField(L("Name"), text: $name)
-        Button(L("OK")) {
+        Button(request.confirmTitle) {
             var updated = request
             updated.name = name
             browser.commitName(updated)
@@ -319,7 +325,8 @@ private struct TransferRow: View {
             }
             Text(detail)
                 .font(.caption)
-                .foregroundStyle(isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                // The red arrow already marks a failure; the reason stays readable.
+                .foregroundStyle(isFailed ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                 .lineLimit(2)
         }
     }

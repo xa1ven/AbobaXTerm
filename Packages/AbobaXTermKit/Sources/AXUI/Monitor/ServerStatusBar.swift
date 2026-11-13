@@ -112,8 +112,12 @@ private struct StatusItem<Details: View, Accessory: View>: View {
                 if let icon {
                     Image(systemName: icon).foregroundStyle(.secondary)
                 }
+                // A warning is a colored symbol next to plain text: red or
+                // orange text this small is hard to read on a light bar.
+                if let tint {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(tint)
+                }
                 Text(text)
-                    .foregroundStyle(tint ?? .primary)
                     .frame(minWidth: minTextWidth, alignment: .leading)
                 accessory()
             }

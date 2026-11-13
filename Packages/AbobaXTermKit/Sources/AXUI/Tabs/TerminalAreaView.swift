@@ -1,4 +1,5 @@
 import AXL10n
+import AXModels
 import AXTerminal
 import SwiftUI
 
@@ -15,47 +16,63 @@ struct TerminalAreaView: View {
             if let tab = model.selectedTab {
                 TerminalViewRepresentable(tab: tab)
                     .id(tab.id)
-                    .overlay(alignment: .bottom) {
-                        DisconnectedBanner(tab: tab)
-                    }
+                // Below the terminal, not over it: the last lines usually
+                // say why the connection ended.
+                DisconnectedBar(tab: tab)
+                    .id(tab.id)
                 if model.monitorEnabled, let monitor = model.monitors[tab.id] {
-                    Divider()
-                    ServerStatusBar(tab: tab, monitor: monitor)
-                        .id(tab.id)
+                    VStack(spacing: 0) {
+                        Divider()
+                        ServerStatusBar(tab: tab, monitor: monitor)
+                    }
+                    .id(tab.id)
+                    .transition(Motion.bar(from: .bottom))
                 }
             } else {
                 EmptyStateView()
             }
         }
+        // View > Show/Hide Status Bar.
+        .animation(Motion.standard, value: model.monitorEnabled)
     }
 }
 
-private struct DisconnectedBanner: View {
+/// Strip under a terminal whose shell or connection has ended.
+private struct DisconnectedBar: View {
     let tab: TerminalTab
 
     var body: some View {
-        switch tab.state {
-        case .exited(let code):
-            let what = tab.isLocal ? L("Shell exited") : (code == 0 ? L("Session ended") : L("Connection closed"))
-            banner(text: code == 0 || code == nil ? what : L("%@ (exit code %@)", what, code!),
-                   icon: "bolt.horizontal.circle")
-        case .failed(let message):
-            banner(text: message, icon: "exclamationmark.triangle.fill")
-        default:
-            EmptyView()
+        VStack(spacing: 0) {
+            switch tab.state {
+            case .exited(let code):
+                let what = tab.isLocal ? L("Shell exited") : (code == 0 ? L("Session ended") : L("Connection closed"))
+                bar(text: code == 0 || code == nil ? what : L("%@ (exit code %@)", what, code!),
+                    icon: "bolt.horizontal.circle", tint: .secondary)
+            case .failed(let message):
+                bar(text: message, icon: "exclamationmark.triangle.fill", tint: .orange)
+            default:
+                EmptyView()
+            }
         }
+        .animation(Motion.standard, value: tab.state.isActive)
     }
 
-    private func banner(text: String, icon: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-            Text(text).lineLimit(2)
-            Button(tab.isLocal ? L("Restart  ⌘R") : L("Reconnect  ⌘R")) { tab.reconnect() }
+    private func bar(text: String, icon: String, tint: Color) -> some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 10) {
+                Image(systemName: icon).foregroundStyle(tint)
+                Text(text)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+                Spacer(minLength: 12)
+                Button(tab.isLocal ? L("Restart Shell  ⌘R") : L("Reconnect  ⌘R")) { tab.reconnect() }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.bar)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .glassEffect(.regular, in: .capsule)
-        .padding(.bottom, 16)
+        .transition(Motion.bar(from: .bottom))
     }
 }
 
@@ -74,27 +91,19 @@ struct EmptyStateView: View {
                 .multilineTextAlignment(.center)
             HStack {
                 Button(L("New Session…")) { model.newSession() }
-                Button(L("Start Local Terminal")) { model.openLocalTerminal() }
+                Button(L("New Local Terminal")) { model.openLocalTerminal() }
                     .buttonStyle(.borderedProminent)
             }
             let recent = model.recentSessions
             if !recent.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(L("Recent"))
                         .font(.headline)
                         .foregroundStyle(.secondary)
+                        .padding(.leading, 6)
+                        .padding(.bottom, 2)
                     ForEach(recent) { session in
-                        Button {
-                            model.connect(sessionID: session.id)
-                        } label: {
-                            Label {
-                                Text(session.displayName)
-                                Text(session.target).foregroundStyle(.secondary)
-                            } icon: {
-                                Image(systemName: session.iconName).foregroundStyle(session.tint)
-                            }
-                        }
-                        .buttonStyle(.link)
+                        RecentSessionRow(session: session)
                     }
                 }
                 .padding(.top, 8)
@@ -105,3 +114,34 @@ struct EmptyStateView: View {
     }
 }
 
+/// A recent session on the empty screen: the name in the label color, the
+/// address dimmer, a highlight under the pointer.
+private struct RecentSessionRow: View {
+    @Environment(AppModel.self) private var model
+    let session: Session
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            model.connect(sessionID: session.id)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: session.iconName)
+                    .foregroundStyle(session.tint)
+                    .frame(width: 18)
+                Text(session.displayName)
+                    .foregroundStyle(.primary)
+                Text(session.target)
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .frame(height: 24)
+            .background(Color.primary.opacity(hovering ? 0.08 : 0), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(L("Connect"))
+    }
+}

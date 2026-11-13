@@ -39,6 +39,11 @@ struct FileNameRequest: Identifiable {
     var kind: Kind
     var name: String
 
+    /// Title of the button that confirms the name.
+    var confirmTitle: String {
+        if case .rename = kind { L("Rename") } else { L("Create") }
+    }
+
     var title: String {
         switch kind {
         case .newFolder: L("New Folder")

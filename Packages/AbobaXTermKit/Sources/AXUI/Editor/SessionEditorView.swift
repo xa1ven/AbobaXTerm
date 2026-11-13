@@ -57,6 +57,12 @@ struct SessionEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            Text(request.isNew ? L("New Session") : L("Edit Session"))
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 2)
             Form {
                 Section {
                     TextField(L("Host"), text: $session.host, prompt: Text(""))
@@ -66,7 +72,16 @@ struct SessionEditorView: View {
                 }
 
                 Section {
-                    SectionTabs(selection: $expanded)
+                    // Nothing is selected at first: the short form is enough
+                    // for most sessions. A segment opens its rows.
+                    Picker(L("Section"), selection: $expanded) {
+                        ForEach(EditorSection.allCases) { section in
+                            Text(section.title).tag(EditorSection?.some(section))
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
                     switch expanded {
                     case .authentication: authenticationRows
                     case .advanced: advancedRows
@@ -83,8 +98,10 @@ struct SessionEditorView: View {
             footer
         }
         .frame(width: 520)
-        .animation(.snappy(duration: 0.2), value: expanded)
-        .background(OutsideClickMonitor { dismiss() })
+        .animation(Motion.standard, value: expanded)
+        // A click on the window behind closes the sheet only while nothing
+        // has been typed; otherwise the edits would be lost without a word.
+        .background(OutsideClickMonitor { if !hasChanges { dismiss() } })
         .onAppear {
             keys = SSHKeyScanner.scan()
             if !request.isNew { hasSavedPassword = model.hasSavedPassword(for: session.id) }
@@ -178,7 +195,7 @@ struct SessionEditorView: View {
                 set: { session.icon = $0 == SessionIcon.default ? nil : $0 }
             )) {
                 ForEach(SessionIcon.all, id: \.self) { name in
-                    Label(name, systemImage: name).tag(name)
+                    Label(SessionIcon.title(of: name), systemImage: name).tag(name)
                 }
             }
             Toggle(L("Favorite"), isOn: $session.isFavorite)
@@ -209,10 +226,13 @@ struct SessionEditorView: View {
     private var footer: some View {
         HStack {
             if let validationError, !session.host.trimmingCharacters(in: .whitespaces).isEmpty {
-                Label(validationError, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
+                Label {
+                    Text(validationError)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                }
+                .font(.callout)
+                .lineLimit(2)
             }
             Spacer()
             Button(L("Cancel"), role: .cancel) { dismiss() }
@@ -252,6 +272,14 @@ struct SessionEditorView: View {
         return s
     }
 
+    /// Whether anything differs from what the sheet opened with.
+    private var hasChanges: Bool {
+        var original = request.session
+        original.host = original.host.trimmingCharacters(in: .whitespaces)
+        original.name = original.name.trimmingCharacters(in: .whitespaces)
+        return composed != original || !password.isEmpty
+    }
+
     private var validationError: String? {
         let port = portText.trimmingCharacters(in: .whitespaces)
         if !port.isEmpty, Int(port).map({ (1...65535).contains($0) }) != true {
@@ -288,54 +316,28 @@ struct SessionEditorView: View {
     }
 }
 
-/// Full-width tab bar "Authentication | Advanced | Organization".
-/// Nothing is selected at first; once a tab is chosen one always stays
-/// selected (tabs switch, they do not collapse).
-private struct SectionTabs: View {
-    @Binding var selection: EditorSection?
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(Array(EditorSection.allCases.enumerated()), id: \.element) { index, section in
-                if index > 0 {
-                    Divider()
-                        .frame(height: 16)
-                        .opacity(selection == section || selection == EditorSection.allCases[index - 1] ? 0 : 1)
-                }
-                SectionTab(title: section.title, isSelected: selection == section) {
-                    selection = section
-                }
-            }
+extension SessionIcon {
+    /// Name shown in the icon menu, instead of the symbol's technical name.
+    static func title(of symbol: String) -> String {
+        switch symbol {
+        case "terminal": L("Terminal")
+        case "server.rack": L("Server")
+        case "desktopcomputer": L("Desktop Computer")
+        case "laptopcomputer": L("Laptop")
+        case "cloud": L("Cloud")
+        case "cpu": L("Processor")
+        case "network": L("Network")
+        case "externaldrive": L("Drive")
+        case "house": L("Home")
+        case "building.2": L("Office")
+        case "shield": L("Security")
+        case "globe": L("Internet")
+        case "flask": L("Lab")
+        case "hammer": L("Build")
+        case "gamecontroller": L("Games")
+        case "display": L("Display")
+        default: symbol
         }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
-        )
-    }
-}
-
-private struct SectionTab: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 28)
-                .contentShape(Rectangle())
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isSelected ? Color.primary.opacity(0.16) : Color.primary.opacity(hovering ? 0.06 : 0))
-                )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
     }
 }
 

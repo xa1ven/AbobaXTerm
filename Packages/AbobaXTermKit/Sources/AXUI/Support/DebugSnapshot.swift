@@ -14,7 +14,7 @@ private let debugSessionID = UUID(uuidString: "D0D0D0D0-0000-0000-0000-000000000
 ///     AbobaXTerm.app/Contents/MacOS/AbobaXTerm
 ///
 /// Steps: home, local, editor, editor-auth, editor-advanced, editor-org,
-/// settings, sidebar-expand (opens all folders), sidebar-click-N (clicks row N of the sessions list), terminal-focus, link-click (⌘-clicks the first https:// address in the selected terminal and writes the link it would open to link-click.txt), monitor-details (the status bar popovers of the selected SSH tab in one window), dark, light (dark/light change the saved preference), sidebar-anim
+/// settings, sidebar-expand (opens all folders), sidebar-click-N (clicks row N of the sessions list), sidebar-search-click (clicks the search field; state file: searchFocused), terminal-focus, link-click (⌘-clicks the first https:// address in the selected terminal and writes the link it would open to link-click.txt), monitor-details (the status bar popovers of the selected SSH tab in one window), dark, light (dark/light change the saved preference), sidebar-anim
 /// (collapses and expands the sidebar, logs its frame over time to sidebar-anim.txt). The app exits after the last step.
 @MainActor
 enum DebugSnapshot {
@@ -233,6 +233,21 @@ enum DebugSnapshot {
                     NSApp.postEvent(event, atStart: false)
                 }
             }
+        case "sidebar-search-click":
+            // A real left click in the middle of the sidebar's search field;
+            // "searchFocused" in the state file says whether it took focus.
+            guard let field = searchField(), let window = field.window else { break }
+            // As in real use: the app is active and its window is key
+            // (focus changes are skipped while there is no key window).
+            NSApp.activate()
+            window.makeKeyAndOrderFront(nil)
+            let point = field.convert(NSPoint(x: field.bounds.midX, y: field.bounds.midY), to: nil)
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                if let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                    NSApp.postEvent(event, atStart: false)
+                }
+            }
         case "terminal-focus": model.focusTerminal()
         case "paste":
             // ABX_SNAPSHOT_PASTE_FILE: text offered to the selected terminal as if pasted (the clipboard is not used).
@@ -290,6 +305,19 @@ enum DebugSnapshot {
         return nil
     }
 
+    /// The search field of the main window's sidebar.
+    private static func searchField() -> NSSearchField? {
+        func find(_ v: NSView) -> NSSearchField? {
+            if let f = v as? NSSearchField { return f }
+            for sub in v.subviews { if let f = find(sub) { return f } }
+            return nil
+        }
+        for window in NSApp.windows where window.isVisible && window.sheetParent == nil {
+            if let root = window.contentView?.superview, let field = find(root) { return field }
+        }
+        return nil
+    }
+
     /// The glass sidebar does not draw in snapshots; capture the file outline
     /// (plain AppKit) and dump its rows as text instead.
     private static func captureSidebar(into dir: String, prefix: String, model: AppModel) {
@@ -299,6 +327,25 @@ enum DebugSnapshot {
             return nil
         }
         var lines = ["sidebarMode=\(model.sidebarMode)"]
+        if let field = searchField() {
+            // While editing, the first responder is the field editor, whose delegate is the field.
+            let responder = field.window?.firstResponder
+            let focused = responder === field || ((responder as? NSTextView)?.delegate as? NSView) === field
+            lines.append("searchFocused=\(focused)")
+            // Where the field sits and what a click in its middle would land on.
+            if let window = field.window, let root = window.contentView?.superview {
+                let frame = field.convert(field.bounds, to: nil)
+                let hit = root.hitTest(root.convert(NSPoint(x: frame.midX, y: frame.midY), from: nil))
+                var chain: [String] = []
+                var view: NSView? = hit
+                while let current = view, chain.count < 6 { chain.append(String(describing: type(of: current))); view = current.superview }
+                let contentHit = window.contentView.flatMap { $0.hitTest($0.convert(NSPoint(x: frame.midX, y: frame.midY), from: nil)) }
+                lines.append("searchField contentViewHit=\(contentHit.map { String(describing: type(of: $0)) } ?? "nil") keyWindow=\(NSApp.keyWindow === window)")
+                lines.append("searchField: frame=\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height)) windowHeight=\(Int(window.frame.height)) enabled=\(field.isEnabled) hit=\(chain.joined(separator: " < "))")
+            }
+        } else {
+            lines.append("searchFocused=no-field")
+        }
         if let table = sessionsTable() {
             let focused = (table.window?.firstResponder as? NSView)?.isDescendant(of: table) ?? false
             lines.append("sessions: rows=\(table.numberOfRows) selection=\(model.sidebarSelection.map { "\($0)" } ?? "-") tableSelected=\(Array(table.selectedRowIndexes)) focused=\(focused) highlightOff=\(table.selectionHighlightStyle == .none)")

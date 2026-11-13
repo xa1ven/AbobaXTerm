@@ -17,7 +17,6 @@ public struct MainView: View {
             SidebarView()
         } detail: {
             TerminalAreaView()
-                .toolbar { MainToolbar() }
         }
         .navigationTitle(model.selectedTab?.title ?? "AbobaXTerm")
         .navigationSubtitle(model.selectedTab?.subtitle ?? "")
@@ -91,6 +90,10 @@ private struct FolderNameField: View {
     @State private var name: String
     let request: FolderNameRequest
 
+    private var isRename: Bool {
+        if case .rename = request.mode { true } else { false }
+    }
+
     init(request: FolderNameRequest) {
         self.request = request
         _name = State(initialValue: request.name)
@@ -98,22 +101,12 @@ private struct FolderNameField: View {
 
     var body: some View {
         TextField(L("Name"), text: $name)
-        Button(L("OK")) {
+        // The button names the action, not "OK".
+        Button(isRename ? L("Rename") : L("Create")) {
             var updated = request
             updated.name = name
             model.commitFolderName(updated)
         }
         Button(L("Cancel"), role: .cancel) {}
-    }
-}
-
-private struct MainToolbar: ToolbarContent {
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            SettingsLink {
-                Label(L("Settings"), systemImage: "gearshape")
-            }
-            .help(L("Settings (⌘,)"))
-        }
     }
 }

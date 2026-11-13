@@ -40,8 +40,9 @@ id_rsa*
 id_ed25519*
 .env
 
-# Local notes for the AI assistant (not published)
+# Local notes and settings for the AI assistant (not published)
 CLAUDE.md
+/.claude/
 
 # Web site: kept on this Mac only (not published), deployed with site/deploy.sh
 site/

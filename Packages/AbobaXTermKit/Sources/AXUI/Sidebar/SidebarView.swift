@@ -94,10 +94,12 @@ struct SidebarView: View {
             switch model.sidebarMode {
             case .sessions:
                 SessionsListView()
+                    .transition(.opacity)
             case .files:
                 if let tab = model.selectedTab, let browser = model.selectedFileBrowser {
                     FileBrowserPanel(browser: browser, tab: tab)
                         .id(tab.id)
+                        .transition(.opacity)
                 } else {
                     ContentUnavailableView {
                         Label(L("No SFTP Session"), systemImage: "folder")
@@ -105,9 +107,14 @@ struct SidebarView: View {
                         Text(L("Open an SSH session to browse its files here."))
                     }
                     .frame(maxHeight: .infinity)
+                    .transition(.opacity)
                 }
             }
         }
+        .animation(Motion.quick, value: model.sidebarMode)
+        // The field sits above the list, outside the window's content view
+        // (see SidebarTableBridge.handleClick). The debug step
+        // "sidebar-search-click" checks that it still takes a click.
         .searchable(text: $model.searchText, placement: .sidebar, prompt: L("Search sessions"))
         .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 600)
     }
@@ -116,6 +123,7 @@ struct SidebarView: View {
 /// Saved sessions: favorites and the folder tree, or search results.
 private struct SessionsListView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         @Bindable var model = model
@@ -194,7 +202,7 @@ private struct SessionsListView: View {
                 SidebarBarButton(symbol: "plus", help: L("New Session (⌘N)")) {
                     model.newSession(in: model.selectedFolderForNewItems)
                 }
-                SidebarBarButton(symbol: "folder.badge.plus", help: L("New Folder (⇧⌘N)")) {
+                SidebarBarButton(symbol: "folder.badge.plus", help: L("New Folder… (⇧⌘N)")) {
                     model.requestNewFolder(parent: model.selectedFolderForNewItems)
                 }
                 Spacer()
@@ -278,14 +286,14 @@ private struct SessionsListView: View {
     private func selectionMark(_ item: SidebarItem) -> some View {
         if model.sidebarSelection == item {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.primary.opacity(0.12))
+                .fill(Color.primary.opacity(contrast == .increased ? 0.3 : 0.12))
                 .padding(.horizontal, -6)
                 .padding(.vertical, -3)
         }
     }
 
     private func setCollapsed(_ value: Bool, _ id: UUID) {
-        withAnimation(.snappy(duration: 0.18)) {
+        withAnimation(Motion.standard) {
             if value { model.expandedFolders.remove(id) } else { model.expandedFolders.insert(id) }
         }
     }
@@ -341,8 +349,10 @@ struct SessionRow: View {
                         Image(systemName: "star.fill")
                             .font(.caption2)
                             .foregroundStyle(.yellow)
+                            .transition(Motion.item)
                     }
                 }
+                .animation(Motion.standard, value: session.isFavorite)
                 Text(folderPath.isEmpty ? session.target : "\(folderPath) · \(session.target)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -392,7 +402,7 @@ struct SidebarContextMenu: View {
             }
         case .folder(let id):
             Button(L("New Session Here…")) { model.newSession(in: id) }
-            Button(L("New Subfolder")) { model.requestNewFolder(parent: id) }
+            Button(L("New Subfolder…")) { model.requestNewFolder(parent: id) }
             Divider()
             Button(L("Rename…")) { model.requestRenameFolder(id) }
             Button(L("Move to Top Level")) { model.move(folderID: id, to: nil) }
@@ -400,7 +410,7 @@ struct SidebarContextMenu: View {
             Button(L("Delete Folder…"), role: .destructive) { model.requestDeleteFolder(id) }
         case nil:
             Button(L("New Session…")) { model.newSession() }
-            Button(L("New Folder")) { model.requestNewFolder() }
+            Button(L("New Folder…")) { model.requestNewFolder() }
         }
     }
 }

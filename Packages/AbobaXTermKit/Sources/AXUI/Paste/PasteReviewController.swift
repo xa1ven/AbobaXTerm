@@ -178,6 +178,9 @@ final class PasteReviewController: NSObject, NSTextViewDelegate {
             }
             for range in sanitized.unresolvedRanges {
                 text.addAttribute(.backgroundColor, value: NSColor.systemOrange.withAlphaComponent(0.45), range: range)
+                // Not by color alone: green and orange look alike to many people.
+                text.addAttribute(.underlineStyle, value: NSUnderlineStyle.thick.rawValue, range: range)
+                text.addAttribute(.underlineColor, value: NSColor.systemOrange, range: range)
             }
         }
         textView.textStorage?.setAttributedString(text)
