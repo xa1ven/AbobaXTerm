@@ -392,7 +392,7 @@ enum Russian {
         "⌘-click opens a link": "⌘-клик открывает ссылку",
         "Important:": "Важно:",
         "AbobaXTerm is a fan-made MobaXterm-inspired terminal for macOS, not affiliated with Mobatek. The source code is open and it is free for personal use; it is not for sale.":
-            "AbobaXTerm — фанатский аналог MobaXterm для macOS, с Mobatek не связан. Исходный код открыт, для личного использования бесплатно; не для продажи.",
+            "AbobaXTerm — любительский аналог MobaXterm для macOS, с Mobatek не связан. Исходный код открыт, для личного использования бесплатно; не для продажи.",
         "More information:": "Подробнее:",
     ]
 
